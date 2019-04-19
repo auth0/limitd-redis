@@ -393,6 +393,48 @@ describe('LimitDBRedis', () => {
         done();
       });
     });
+
+    it('should return non-conformant-attempts stats', (done) => {
+      async.waterfall([
+        cb => async.map(_.range(10), (i, done) => {
+          db.take({ type: 'ip', key: '8.8.8.8' }, done);
+        }, cb),
+
+        (results, cb) => {
+          assert.ok(results.every(r => r.conformant));
+
+          results.forEach((r, i) => {
+            assert.equal(r.stats.nonConformantAttempts, 0);
+          });
+
+          cb();
+        },
+
+        cb => async.map(_.range(10), (i, done) => {
+          db.take({ type: 'ip', key: '8.8.8.8' }, done);
+        }, cb),
+
+        (results, cb) => {
+          results.forEach((r, i) => {
+            assert.notOk(r.conformant);
+            assert.equal(r.stats.nonConformantAttempts, i);
+          });
+
+          cb();
+        },
+
+        cb => db.put({ type: 'ip', key: '8.8.8.8', count: 1 }, (err) => done(err)),
+
+        cb => db.take({ type: 'ip', key: '8.8.8.8' }, cb),
+
+        (result, cb) => {
+          assert.notOk(result.conformant);
+          assert.equal(result.stats.nonConformantAttempts, 10);
+
+          cb();
+        }
+      ], done);
+    });
   });
 
   describe('PUT', function () {

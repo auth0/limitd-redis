@@ -69,3 +69,6 @@ typings/
 
 # test garbage
 dump.rdb
+
+# lock
+package-lock.json

@@ -56,7 +56,7 @@ If you don't specify a filling rate with `per_interval` or any other `per_x`, th
 
 You can also define `overrides` inside your type definitions as follows:
 
-```javascript
+```js
 buckets = {
   ip: {
     size: 10,
@@ -75,7 +75,7 @@ In this case the specific bucket for `127.0.0.1` of type `ip` will have a greate
 
 It is also possible to define overrides by regex:
 
-```
+```js
 overrides: {
   'local-ips': {
     match:      /192\.168\./
@@ -87,7 +87,7 @@ overrides: {
 
 It's possible to configure expiration of overrides:
 
-```
+```js
 overrides: {
   '54.32.12.31': {
     size:       100,

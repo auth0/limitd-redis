@@ -1,6 +1,7 @@
 /* eslint-env node, mocha */
 const _ = require('lodash');
 const assert = require('chai').assert;
+const Redis = require('ioredis');
 const LimitRedis = require('../lib/client');
 const ValidationError = LimitRedis.ValidationError;
 
@@ -189,6 +190,12 @@ describe('LimitdRedis', () => {
         assert.equal(client.db.listenerCount('ready'), 0);
         done(err);
       });
+    });
+  });
+
+  describe('#getClient', () => {
+    it('should be instanceof Redis', () => {
+      assert.instanceOf(client.getClient(), Redis);
     });
   });
 });

@@ -4,6 +4,7 @@ const async    = require('async');
 const _        = require('lodash');
 const LimitDB  = require('../lib/db');
 const assert   = require('chai').assert;
+const Redis    = require('ioredis');
 
 const buckets = {
   ip: {
@@ -854,6 +855,12 @@ describe('LimitDBRedis', () => {
           });
         });
       });
+    });
+  });
+
+  describe('#getClient', () => {
+    it('should be instanceof Redis', () => {
+      assert.instanceOf(db.getClient(), Redis);
     });
   });
 });

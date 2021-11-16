@@ -35,7 +35,10 @@ const buckets = {
       },
       '8.8.8.8': {
         size: 10
-      }
+      },
+      '9.8.7.6': {
+        size: 200,
+      },
     }
   },
   user: {
@@ -383,6 +386,18 @@ describe('LimitDBRedis', () => {
       });
     });
 
+    it('should work with count=0', (done) => {
+      db.take({ type: 'ip', key: '9.8.7.6', count: 0 }, (err, response) => {
+        if (err) {
+          return done(err);
+        }
+        assert.ok(response.conformant);
+        assert.equal(response.remaining, 200);
+        assert.equal(response.limit, 200);
+        done();
+      });
+    });
+
     it('should use size config override when provided', (done) => {
       const configOverride = { size : 7 };
       db.take({ type: 'ip', key: '7.7.7.7', configOverride}, (err, response) => {
@@ -537,6 +552,21 @@ describe('LimitDBRedis', () => {
             if (err) return done(err);
             assert.equal(response.conformant, true);
             assert.equal(response.remaining, 1);
+            done();
+          });
+        });
+      });
+    });
+
+    it('should restore nothing when count=0', (done) => {
+      db.take({ type: 'ip',  key: '9.8.7.6', count: 123 }, (err) => {
+        if (err) return done(err);
+        db.put({ type: 'ip', key: '9.8.7.6', count: 0 }, (err) => {
+          if (err) return done(err);
+          db.take({ type: 'ip',  key: '9.8.7.6', count: 0 }, (err, response) => {
+            if (err) return done(err);
+            assert.equal(response.conformant, true);
+            assert.equal(response.remaining, 77);
             done();
           });
         });
@@ -790,6 +820,30 @@ describe('LimitDBRedis', () => {
         });
       });
     });
+
+    it('should not be delayed when traffic is non conformant and count=0', (done) => {
+      db.take({
+        type: 'ip',
+        key: '211.76.23.5',
+        count: 10
+      }, (err) => {
+        if (err) return done(err);
+        const waitingSince = Date.now();
+        db.wait({
+          type: 'ip',
+          key: '211.76.23.5',
+          count: 0
+        }, (err, response) => {
+          if (err) { return done(err); }
+          var waited = Date.now() - waitingSince;
+          assert.ok(response.conformant);
+          assert.notOk(response.delayed);
+          assert.closeTo(waited, 0, 20);
+          done();
+        });
+      });
+    });
+
 
     it('should use per interval config override when provided', (done) => {
       const oneSecondInMs = ms('1s') / 3;

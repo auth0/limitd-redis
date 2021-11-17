@@ -398,6 +398,26 @@ describe('LimitDBRedis', () => {
       });
     });
 
+    [
+      '0',
+      0.5,
+      'ALL',
+      true,
+      1n,
+      {},
+    ].forEach((count) => {
+      it(`should not work for non-integer count=${count}`, (done) => {
+        const opts = {
+          type: 'ip',
+          key: '9.8.7.6',
+          count,
+        };
+
+        assert.throws(() => db.take(opts, () => {}), /if provided, count must be 'all' or an integer value/);
+        done();
+      });
+    });
+
     it('should use size config override when provided', (done) => {
       const configOverride = { size : 7 };
       db.take({ type: 'ip', key: '7.7.7.7', configOverride}, (err, response) => {
@@ -570,6 +590,26 @@ describe('LimitDBRedis', () => {
             done();
           });
         });
+      });
+    });
+
+    [
+      '0',
+      0.5,
+      'ALL',
+      true,
+      1n,
+      {},
+    ].forEach((count) => {
+      it(`should not work for non-integer count=${count}`, (done) => {
+        const opts = {
+          type: 'ip',
+          key: '9.8.7.6',
+          count,
+        };
+
+        assert.throws(() => db.put(opts, () => {}), /if provided, count must be 'all' or an integer value/);
+        done();
       });
     });
 

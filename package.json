@@ -23,6 +23,7 @@
     "retry": "^0.12.0"
   },
   "devDependencies": {
+    "@a0/instrumentation": "^5.0.6",
     "chai": "^4.1.2",
     "eslint": "^6.1.0",
     "mocha": "^5.2.0",

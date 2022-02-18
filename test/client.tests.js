@@ -25,11 +25,11 @@ describe('LimitdRedis', () => {
     });
 
     it('should set up retry and circuitbreaker defaults', () => {
-      assert.equal(client.retryOpts.retries, 3);
+      assert.equal(client.retryOpts.retries, 1);
       assert.equal(client.retryOpts.minTimeout, 10);
       assert.equal(client.retryOpts.maxTimeout, 30);
-      assert.equal(client.breakerOpts.timeout, '0.25s');
-      assert.equal(client.breakerOpts.maxFailures, 50);
+      assert.equal(client.breakerOpts.timeout, '0.15s');
+      assert.equal(client.breakerOpts.maxFailures, 10);
       assert.equal(client.breakerOpts.cooldown, '1s');
       assert.equal(client.breakerOpts.maxCooldown, '3s');
       assert.equal(client.breakerOpts.name, 'limitr');

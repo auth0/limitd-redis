@@ -1,6 +1,6 @@
 {
   "name": "limitd-redis",
-  "version": "7.2.0",
+  "version": "7.3.1",
   "description": "A database client for limits on top of redis",
   "main": "index.js",
   "repository": {

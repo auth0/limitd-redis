@@ -8,7 +8,7 @@ local drip_interval        = tonumber(ARGV[5])
 local current_time = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000
 
-local current = redis.pcall('HMGET', KEYS[1], 'd', 'r')
+local current = redis.pcall('HMGET', KEYS[1], 'd', 'r', 't')
 local triggered = false
 
 if current.err ~= nil then

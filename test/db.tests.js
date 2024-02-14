@@ -77,7 +77,17 @@ const buckets = {
         per_hour: 0
       }
     }
-
+  },
+  elevated_tenant: {
+    size: 1,
+    per_minute: 1,
+    elevated_limits: {
+      // enabled: true,
+      size: 2,
+      per_minute: 2,
+      // activation_period: 900,
+      // quota: 192
+    }
   }
 };
 
@@ -673,6 +683,41 @@ describe('LimitDBRedis', () => {
         })
       });
     })
+  });
+
+  describe('TAKE_ELEVATED', () => {
+    it('should be conformant when traffic exceeds normal rate limit configuration', (done) => {
+      const now = Date.now();
+      db.takeElevated({
+        type: 'elevated_tenant',
+        key:  'mytenant'
+      }, (err, result) => {
+        if (err) return done(err);
+        assert.isTrue(result.conformant);
+        assert.isFalse(result.erl_activated)
+
+          // second call
+          db.takeElevated({
+              type: 'elevated_tenant',
+              key:  'mytenant'
+          }, (err, result) => {
+              if (err) return done(err);
+              assert.isTrue(result.conformant);
+              assert.isTrue(result.erl_activated)
+
+              // third call
+              db.takeElevated({
+                  type: 'elevated_tenant',
+                  key:  'mytenant'
+              }, (err, result) => {
+                  if (err) return done(err);
+                  assert.isFalse(result.conformant);
+                  assert.isTrue(result.erl_activated)
+                  done();
+              });
+          });
+      });
+    });
   });
 
   describe('PUT', () => {

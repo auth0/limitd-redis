@@ -683,44 +683,46 @@ describe('LimitDBRedis', () => {
         })
       });
     })
-  });
 
-  describe('TAKE_ELEVATED', () => {
-    const takeElevatedPromise = (params) => new Promise((resolve, reject) => {
-      db.takeElevated(params, (err, response) => {
-        if (err) {
-          return reject(err);
-        }
-        resolve(response);
+    describe('elevated rate limits', () => {
+      const takeElevatedPromise = (params) => new Promise((resolve, reject) => {
+        db.take(params, (err, response) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(response);
+        });
+      });
+
+      it('should be conformant when traffic exceeds normal rate limit configuration', async () => {
+        // first call, still within normal rate limits
+        await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isFalse(result.erl_activated);
+        })
+
+        // second call, normal rate limits exceeded and erl is activated, setting the tokens in bucket instance to 1 (previous size of the bucket)
+        await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isTrue(result.erl_activated);
+        })
+
+        // third call, last token is taken from bucket
+        await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isTrue(result.erl_activated);
+        })
+
+        // fourth call, erl rate limit exceeded
+        await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
+          assert.isFalse(result.conformant);
+          assert.isTrue(result.erl_activated);
+        })
       });
     });
 
-    it('should be conformant when traffic exceeds normal rate limit configuration', async () => {
-      // first call, still within normal rate limits
-      await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
-        assert.isTrue(result.conformant);
-        assert.isFalse(result.erl_activated);
-      })
-
-      // second call, normal rate limits exceeded and erl is activated, setting the tokens in bucket instance to 1 (previous size of the bucket)
-      await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
-        assert.isTrue(result.conformant);
-        assert.isTrue(result.erl_activated);
-      })
-
-      // third call, last token is taken from bucket
-      await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
-        assert.isTrue(result.conformant);
-        assert.isTrue(result.erl_activated);
-      })
-
-      // fourth call, erl rate limit exceeded
-      await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
-        assert.isFalse(result.conformant);
-        assert.isTrue(result.erl_activated);
-      })
-    });
   });
+
 
   describe('PUT', () => {
     it('should fail on validation', (done) => {

@@ -4,7 +4,6 @@ local new_content          = tonumber(ARGV[2])
 local tokens_to_take       = tonumber(ARGV[3])
 local ttl                  = tonumber(ARGV[4])
 local drip_interval        = tonumber(ARGV[5])
-
 local erl_tokens_per_ms = tonumber(ARGV[6])
 local erl_bucket_size = tonumber(ARGV[7])
 
@@ -36,17 +35,18 @@ function calculateNewBucketContent(current, tokens_per_ms, bucket_size, current_
     end
 end
 
-
 local enough_tokens = calculateNewBucketContent(current, tokens_per_ms, bucket_size, current_timestamp_ms) >= tokens_to_take
 
 if enough_tokens then
     new_content = math.min(new_content - tokens_to_take, bucket_size)
-end
-
-if !enough_tokens then
+elseif
     new_content = calculateNewBucketContent(current, erl_tokens_per_ms, erl_bucket_size, current_timestamp_ms)
 end
 
+enough_tokens = new_content >= tokens_to_take
+if enough_tokens then
+    new_content = math.min(new_content - tokens_to_take, bucket_size)
+end
 
 
 -- https://redis.io/commands/EVAL#replicating-commands-instead-of-scripts

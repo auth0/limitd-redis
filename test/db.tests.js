@@ -713,7 +713,7 @@ describe('LimitDBRedis', () => {
         assert.isFalse(result.conformant);
         // assert.isTrue(result.erl_activated);
       })
-
+    });
   });
 
   describe('PUT', () => {

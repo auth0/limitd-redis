@@ -50,6 +50,7 @@ else
         redis.log(redis.LOG_NOTICE, 'activating erl for first time')
         new_content = new_content + erl_bucket_size
         redis.call('SET', erlKey, '1')
+        is_erl_activated = 1 -- this will be returned to the caller, so we should set it
     end
 
     enough_tokens = new_content >= tokens_to_take

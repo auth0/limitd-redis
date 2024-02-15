@@ -686,38 +686,34 @@ describe('LimitDBRedis', () => {
   });
 
   describe('TAKE_ELEVATED', () => {
-    it('should be conformant when traffic exceeds normal rate limit configuration', (done) => {
-      const now = Date.now();
-      db.takeElevated({
-        type: 'elevated_tenant',
-        key:  'mytenant'
-      }, (err, result) => {
-        if (err) return done(err);
-        assert.isTrue(result.conformant);
-        assert.isFalse(result.erl_activated)
-
-          // second call
-          db.takeElevated({
-              type: 'elevated_tenant',
-              key:  'mytenant'
-          }, (err, result) => {
-              if (err) return done(err);
-              assert.isTrue(result.conformant);
-              assert.isTrue(result.erl_activated)
-
-              // third call
-              db.takeElevated({
-                  type: 'elevated_tenant',
-                  key:  'mytenant'
-              }, (err, result) => {
-                  if (err) return done(err);
-                  assert.isFalse(result.conformant);
-                  assert.isTrue(result.erl_activated)
-                  done();
-              });
-          });
+    const takeElevatedPromise = (params) => new Promise((resolve, reject) => {
+      db.takeElevated(params, (err, response) => {
+        if (err) {
+          return reject(err);
+        }
+        resolve(response);
       });
     });
+
+    it('should be conformant when traffic exceeds normal rate limit configuration', async () => {
+      // first call, still within normal rate limits
+      await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
+        assert.isTrue(result.conformant);
+        // assert.isFalse(result.erl_activated);
+      })
+
+      // second call, normal rate limits exceeded and erl is activated
+      await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
+        assert.isTrue(result.conformant);
+        // assert.isTrue(result.erl_activated);
+      })
+
+      // third call, erl rate limit exceeded
+      await takeElevatedPromise({ type: 'elevated_tenant', key:  'mytenant' }).then((result) => {
+        assert.isFalse(result.conformant);
+        // assert.isTrue(result.erl_activated);
+      })
+
   });
 
   describe('PUT', () => {

@@ -78,7 +78,7 @@ const buckets = {
       }
     }
   },
-  elevated_tenant: {
+  bucket_with_elevated_limits: {
     size: 1,
     per_minute: 1,
     elevated_limits: {
@@ -698,36 +698,36 @@ describe('LimitDBRedis', () => {
         it('should return when erl is activated', async () => {
           // first call, still within normal rate limits
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isFalse(result.erl_activated);
           })
 
           // second call, normal rate limits exceeded and erl is activated, setting the tokens in bucket instance to 1 (previous size of the bucket)
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isTrue(result.erl_activated);
           })
 
           // third call, last token is taken from bucket
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isTrue(result.erl_activated);
           })
 
           // fourth call, erl rate limit exceeded
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isTrue(result.erl_activated);
           })
@@ -736,36 +736,36 @@ describe('LimitDBRedis', () => {
         it('should be conformant if erl is configured and traffic exceeds normal rate limit configuration', async () => {
           // first call, still within normal rate limits
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isTrue(result.conformant);
           })
 
           // second call, normal rate limits exceeded and erl is activated, setting the tokens in bucket instance to 1 (previous size of the bucket)
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isTrue(result.conformant);
           })
 
           // third call, last token is taken from bucket
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isTrue(result.conformant);
           })
 
           // fourth call, erl rate limit exceeded
           await takeElevatedPromise({
-            type: 'elevated_tenant',
-            key: 'mytenant',
-            erlIsActiveKey: 'mytenant'
+            type: 'bucket_with_elevated_limits',
+            key: 'some_bucket_key',
+            erlIsActiveKey: 'some_erl_active_identifier'
           }).then((result) => {
             assert.isFalse(result.conformant);
           })
@@ -777,18 +777,18 @@ describe('LimitDBRedis', () => {
       it.skip('should fall back to normal rate limit refill rates once elevated rate limit activation expires');
       it.skip('should apply normal rate limits if elevated rate limit is not enabled');
       it('should raise an error if erlIsActiveKey is not provided for a bucket with erl configured', (done) => {
-        const params = {type: 'elevated_tenant', key: 'mytenant', erlIsActiveKey: undefined};
+        const params = {type: 'bucket_with_elevated_limits', key: 'some_bucket_key', erlIsActiveKey: undefined};
         db.take(params, (err) => {
           assert.match(err.message, /erlIsActiveKey is required for elevated limits/);
           done();
         });
       });
       it('should be rate limit as normal if erlIsActiveKey is provided for a bucket without elevated limits configuration', async () => {
-        await takeElevatedPromise({type: 'tenant', key: 'mytenant', erlIsActiveKey: 'mytenant'}).then((result) => {
+        await takeElevatedPromise({type: 'tenant', key: 'some_bucket_key', erlIsActiveKey: 'some_erl_active_identifier'}).then((result) => {
           assert.isTrue(result.conformant);
           assert.notExists(result.erl_activated);
         });
-        await takeElevatedPromise({type: 'tenant', key: 'mytenant', erlIsActiveKey: 'mytenant'}).then((result) => {
+        await takeElevatedPromise({type: 'tenant', key: 'some_bucket_key', erlIsActiveKey: 'some_erl_active_identifier'}).then((result) => {
           assert.isFalse(result.conformant);
           assert.notExists(result.erl_activated);
         });

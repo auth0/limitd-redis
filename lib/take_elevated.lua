@@ -1,10 +1,11 @@
-local tokens_per_ms        = tonumber(ARGV[1])
-local bucket_size          = tonumber(ARGV[2])
-local tokens_to_take       = tonumber(ARGV[3])
-local ttl                  = tonumber(ARGV[4])
-local drip_interval        = tonumber(ARGV[5])
-local erl_tokens_per_ms    = tonumber(ARGV[6])
-local erl_bucket_size      = tonumber(ARGV[7])
+local tokens_per_ms               = tonumber(ARGV[1])
+local bucket_size                 = tonumber(ARGV[2])
+local tokens_to_take              = tonumber(ARGV[3])
+local ttl                         = tonumber(ARGV[4])
+local drip_interval               = tonumber(ARGV[5])
+local erl_tokens_per_ms           = tonumber(ARGV[6])
+local erl_bucket_size             = tonumber(ARGV[7])
+local erl_activation_period_mins  = tonumber(ARGV[8])
 
 -- check if we should use erl
 local erlKey = KEYS[2]
@@ -50,6 +51,7 @@ else
         redis.log(redis.LOG_NOTICE, 'activating erl for first time')
         new_content = erl_bucket_size - bucket_size
         redis.call('SET', erlKey, '1')
+        redis.call('EXPIRE', erlKey, erl_activation_period_mins * 60)
         is_erl_activated = 1 -- this will be returned to the caller, so we should set it
     end
 

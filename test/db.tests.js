@@ -85,7 +85,7 @@ const buckets = {
       // enabled: true,
       size: 2,
       per_minute: 2,
-      // activation_period: 900,
+      activation_period_minutes: 15,
       // quota: 192
     },
     overrides: {
@@ -708,6 +708,14 @@ describe('LimitDBRedis', () => {
           resolve(response);
         });
       });
+      const redisExistsPromise = (key) => new Promise((resolve, reject) => {
+        db.redis.exists(key, (err, isActive) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(isActive);
+        });
+      })
 
       describe('happy path' , () => {
         it('should return when erl is activated', async () => {
@@ -748,6 +756,16 @@ describe('LimitDBRedis', () => {
           })
 
         });
+        it('should set a key at erlIsActiveKey when erl is activated', async () => {
+          const erlIsActiveKey = 'some_erl_active_identifier';
+          await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey })
+          // erl not activated yet
+          await redisExistsPromise(erlIsActiveKey).then((isActive) => assert.equal(isActive, 0))
+
+          await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey })
+          // erl now activated
+          await redisExistsPromise(erlIsActiveKey).then((isActive) => assert.equal(isActive, 1))
+        })
         it('should be conformant if erl is configured and traffic exceeds normal rate limit configuration', async () => {
           // first call, still within normal rate limits
           await takeElevatedPromise({
@@ -777,7 +795,6 @@ describe('LimitDBRedis', () => {
             assert.isFalse(result.conformant);
           })
         });
-        it.skip('should refill with erl refill rate', () => { });
         it('should take the correct amount from the bucket when activating ERL', async () => {
           await db.configurateBucket('test-bucket', {
             size: 2,
@@ -795,6 +812,16 @@ describe('LimitDBRedis', () => {
             assert.equal(result.remaining, 7);
           });
         })
+        it('should apply a ttl to activation key when activating ERL',  (done) => {
+          takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
+              .then(() => takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'}))
+              .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
+                assert.equal(ttl, 900); // 15 minutes in seconds
+                done()
+              }))
+        });
+        it.skip('should refill with erl refill rate', () => { });
+        it.skip('should emit an event when activating ERL');
       });
       it('should work with overrides', async () => {
           await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
@@ -822,8 +849,6 @@ describe('LimitDBRedis', () => {
           assert.isFalse(result.conformant);
         })
       });
-      it.skip('should fall back to normal rate limit refill rates once elevated rate limit activation expires');
-      it.skip('should apply normal rate limits if elevated rate limit is not enabled');
       it('should raise an error if erlIsActiveKey is not provided for a bucket with erl configured', (done) => {
         const params = {type: 'bucket_with_elevated_limits', key: 'some_bucket_key', erlIsActiveKey: undefined};
         db.take(params, (err) => {
@@ -841,6 +866,7 @@ describe('LimitDBRedis', () => {
           assert.notExists(result.erl_activated);
         });
       });
+      it.skip('should apply normal rate limits if elevated rate limit is not enabled');
     });
   });
 

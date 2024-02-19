@@ -82,7 +82,7 @@ const buckets = {
     size: 1,
     per_minute: 1,
     elevated_limits: {
-      // enabled: true,
+      enabled: true,
       size: 2,
       per_minute: 2,
       activation_period_minutes: 15,
@@ -800,6 +800,7 @@ describe('LimitDBRedis', () => {
             size: 2,
             per_minute: 1,
             elevated_limits: {
+              enabled: true,
               size: 10,
               per_minute: 1,
             }
@@ -823,6 +824,7 @@ describe('LimitDBRedis', () => {
         it.skip('should refill with erl refill rate', () => { });
         it.skip('should emit an event when activating ERL');
       });
+
       it('should work with overrides', async () => {
           await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
           await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
@@ -866,7 +868,49 @@ describe('LimitDBRedis', () => {
           assert.notExists(result.erl_activated);
         });
       });
-      it.skip('should apply normal rate limits if elevated rate limit is not enabled');
+      it('should apply normal rate limits if elevated rate limit is not enabled', async () => {
+        db.configurateBucket('test-bucket', {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            enabled: false,
+            size: 3,
+            per_minute: 2,
+          }
+        })
+
+        await takeElevatedPromise({type: 'test-bucket', key: 'some_key', erlIsActiveKey: 'another_key'})
+        const result = await takeElevatedPromise({type: 'test-bucket', key: 'some_key', erlIsActiveKey: 'another_key'})
+
+        assert.isFalse(result.conformant)
+      });
+      // todo: fix
+      it.skip('should apply normal rate limits if elevated rate limit is not enabled in override', async () => {
+        db.configurateBucket('test-bucket', {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            enabled: true,
+            size: 3,
+            per_minute: 2,
+          },
+          overrides: {
+            'some_key': {
+              elevated_limits: {
+                enabled: false,
+                size: 3,
+                per_minute: 2,
+              }
+            }
+          }
+        })
+
+        await takeElevatedPromise({type: 'test-bucket', key: 'some_key', erlIsActiveKey: 'another_key'})
+        const result = await takeElevatedPromise({type: 'test-bucket', key: 'some_key', erlIsActiveKey: 'another_key'})
+
+        assert.isFalse(result.conformant)
+      });
+
     });
   });
 

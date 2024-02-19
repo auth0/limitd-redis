@@ -87,7 +87,22 @@ const buckets = {
       per_minute: 2,
       // activation_period: 900,
       // quota: 192
-    }
+    },
+    overrides: {
+      'some_key': {
+        elevated_limits: {
+          size: 3,
+          per_minute: 2,
+        }
+      },
+      'match': {
+        match: 'some_match_.*',
+        elevated_limits: {
+          size: 3,
+          per_minute: 2,
+        }
+      }
+    },
   }
 };
 
@@ -743,7 +758,8 @@ describe('LimitDBRedis', () => {
             assert.isTrue(result.conformant);
           })
 
-          // second call, normal rate limits exceeded and erl is activated, setting the tokens in bucket instance to 1 (previous size of the bucket)
+          // second call, normal rate limits exceeded and erl is activated.
+          // tokens in bucket is now 0 (size 2 - 2 calls)
           await takeElevatedPromise({
             type: 'bucket_with_elevated_limits',
             key: 'some_bucket_key',
@@ -752,16 +768,7 @@ describe('LimitDBRedis', () => {
             assert.isTrue(result.conformant);
           })
 
-          // third call, last token is taken from bucket
-          await takeElevatedPromise({
-            type: 'bucket_with_elevated_limits',
-            key: 'some_bucket_key',
-            erlIsActiveKey: 'some_erl_active_identifier'
-          }).then((result) => {
-            assert.isTrue(result.conformant);
-          })
-
-          // fourth call, erl rate limit exceeded
+          // third call, erl rate limit exceeded
           await takeElevatedPromise({
             type: 'bucket_with_elevated_limits',
             key: 'some_bucket_key',
@@ -770,10 +777,51 @@ describe('LimitDBRedis', () => {
             assert.isFalse(result.conformant);
           })
         });
-        it.skip('should refill with erl refill rate');
-        it.skip('should work with overrides');
-      });
+        it.skip('should refill with erl refill rate', () => { });
+        it('should take the correct amount from the bucket when activating ERL', async () => {
+          await db.configurateBucket('test-bucket', {
+            size: 2,
+            per_minute: 1,
+            elevated_limits: {
+              size: 10,
+              per_minute: 1,
+            }
+          });
 
+          await takeElevatedPromise({ type: 'test-bucket', key: 'some_key ', erlIsActiveKey: 'some_erl_active_identifier' })
+          await takeElevatedPromise({ type: 'test-bucket', key: 'some_key ', erlIsActiveKey: 'some_erl_active_identifier' })
+          await takeElevatedPromise({ type: 'test-bucket', key: 'some_key ', erlIsActiveKey: 'some_erl_active_identifier' }).then((result) => {
+            assert.isTrue(result.conformant);
+            assert.equal(result.remaining, 7);
+          });
+        })
+      });
+      it('should work with overrides', async () => {
+          await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
+          await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
+          await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'}).then((result) => {
+            assert.isTrue(result.conformant);
+          })
+          // ERL override size is 3, so the bucket is now empty
+          await takeElevatedPromise({type: 'bucket_with_elevated_limits', key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'}).then((result) => {
+            assert.isFalse(result.conformant);
+          })
+        });
+      it('should work with overrides using match', async () => {
+        const key = 'some_match_key';
+        const bucket = 'bucket_with_elevated_limits';
+        const erlIsActiveKey = 'some_erl_active_identifier';
+
+        await takeElevatedPromise({type: bucket, key, erlIsActiveKey})
+        await takeElevatedPromise({type: bucket, key, erlIsActiveKey})
+        await takeElevatedPromise({type: bucket, key, erlIsActiveKey}).then((result) => {
+          assert.isTrue(result.conformant);
+        })
+        // ERL override size is 3, so the bucket is now empty
+        await takeElevatedPromise({type: bucket, key, erlIsActiveKey}).then((result) => {
+          assert.isFalse(result.conformant);
+        })
+      });
       it.skip('should fall back to normal rate limit refill rates once elevated rate limit activation expires');
       it.skip('should apply normal rate limits if elevated rate limit is not enabled');
       it('should raise an error if erlIsActiveKey is not provided for a bucket with erl configured', (done) => {

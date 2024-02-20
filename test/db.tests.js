@@ -728,7 +728,6 @@ describe('LimitDBRedis', () => {
           done();
         });
       });
-
       it('should rate limit according to default configuration if there is no erl configuration, regardless of erlIsActiveKey', async () => {
         const bucketName = 'bucket_without_erl_config';
         db.configurateBucket(bucketName, {

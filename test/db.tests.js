@@ -77,8 +77,7 @@ const buckets = {
         per_hour: 0
       }
     }
-
-  }
+  },
 };
 
 describe('LimitDBRedis', () => {
@@ -673,6 +672,194 @@ describe('LimitDBRedis', () => {
         })
       });
     })
+
+    describe('elevated limits', () => {
+      const takeElevatedPromise = (params) => new Promise((resolve, reject) => {
+        db.take(params, (err, response) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(response);
+        });
+      });
+      const redisExistsPromise = (key) => new Promise((resolve, reject) => {
+        db.redis.exists(key, (err, isActive) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(isActive);
+        });
+      })
+
+      it('should set a key at erlIsActiveKey when erl is activated for a bucket with elevated_limits configuration', async () => {
+          const bucketName = 'bucket_with_elevated_limits_config';
+          const erlIsActiveKey = 'some_erl_active_identifier';
+          db.configurateBucket(bucketName, {
+            size: 1,
+            per_minute: 1,
+            elevated_limits: {
+              size: 2,
+              per_minute: 2,
+            },
+          })
+
+          // erl not activated yet
+          await takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey })
+          await redisExistsPromise(erlIsActiveKey).then((isActive) => assert.equal(isActive, 0))
+
+          // erl now activated
+          await takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey })
+          await redisExistsPromise(erlIsActiveKey).then((isActive) => assert.equal(isActive, 1))
+      });
+      it('should raise an error if erlIsActiveKey is not provided for a bucket with elevated_limits configuration', (done) => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        const params = {type: bucketName, key: 'some_bucket_key', erlIsActiveKey: undefined};
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        })
+
+        db.take(params, (err) => {
+          assert.match(err.message, /erlIsActiveKey is required for elevated limits/);
+          done();
+        });
+      });
+
+      it('should rate limit according to default configuration if there is no erl configuration, regardless of erlIsActiveKey', async () => {
+        const bucketName = 'bucket_without_erl_config';
+        db.configurateBucket(bucketName, {
+          size: 2,
+          per_minute: 1,
+        })
+
+        await takeElevatedPromise({type: bucketName, key: 'some_bucket_key', erlIsActiveKey: "some-key"}).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.notExists(result.erl_activated);
+        });
+        await takeElevatedPromise({type: bucketName, key: 'some_bucket_key', erlIsActiveKey: undefined}).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.notExists(result.erl_activated);
+        });
+      });
+      it('should apply erl limits if normal rate limits are exceeded', async () => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 2,
+          },
+        })
+
+        // first call, still within normal rate limits
+        await takeElevatedPromise({
+          type: bucketName,
+          key: 'some_bucket_key',
+          erlIsActiveKey: 'some_erl_active_identifier'
+        }).then((result) => {
+          assert.isFalse(result.erl_activated);
+        })
+        // second call, normal rate limits exceeded and erl is activated
+        await takeElevatedPromise({
+          type: bucketName,
+          key: 'some_bucket_key',
+          erlIsActiveKey: 'some_erl_active_identifier'
+        }).then((result) => {
+          assert.isTrue(result.erl_activated);
+          assert.isTrue(result.conformant);
+          assert.equal(result.remaining, 8)
+        })
+
+      });
+      it('should rate limit if both normal and erl rate limit are exceeded', async () => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        })
+
+        // first call, still within normal rate limits
+        await takeElevatedPromise({
+          type: bucketName,
+          key: 'some_bucket_key',
+          erlIsActiveKey: 'some_erl_active_identifier'
+        }).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isFalse(result.erl_activated);
+          assert.equal(result.remaining, 0)
+        })
+        // second call, normal rate limits exceeded and erl is activated.
+        // tokens in bucket is going to be 0 after this call (size 2 - 2 calls)
+        await takeElevatedPromise({
+          type: bucketName,
+          key: 'some_bucket_key',
+          erlIsActiveKey: 'some_erl_active_identifier'
+        }).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isTrue(result.erl_activated);
+          assert.equal(result.remaining, 0);
+        })
+        // third call, erl rate limit exceeded
+        await takeElevatedPromise({
+          type: bucketName,
+          key: 'some_bucket_key',
+          erlIsActiveKey: 'some_erl_active_identifier'
+        }).then((result) => {
+          assert.isFalse(result.conformant); // being rate limited
+          assert.isTrue(result.erl_activated);
+          assert.equal(result.remaining, 0);
+        })
+      });
+      it('should deduct already used tokens from new bucket when erl is activated', async () => {
+        const bucketName = 'test-bucket';
+        await db.configurateBucket(bucketName, {
+          size: 2,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 1,
+          }
+        });
+
+        await takeElevatedPromise({ type: bucketName, key: 'some_key ', erlIsActiveKey: 'some_erl_active_identifier' })
+        await takeElevatedPromise({ type: bucketName, key: 'some_key ', erlIsActiveKey: 'some_erl_active_identifier' })
+        await takeElevatedPromise({ type: bucketName, key: 'some_key ', erlIsActiveKey: 'some_erl_active_identifier' }).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isTrue(result.erl_activated);
+          assert.equal(result.remaining, 7); // Total used tokens so far: 3
+        });
+      })
+      it('should use default ttl if erl activation period is not configured',  async (done) => {
+        const bucketName = 'test-bucket';
+        await db.configurateBucket(bucketName, {
+          size: 2,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 1,
+            activation_period_minutes: 15,
+          }
+        });
+
+        takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
+            .then(() => takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'}))
+            .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
+              assert.equal(ttl, 900); // 15 minutes in seconds TODO: store default somewhere and compare with it here instead of hardcoded 900
+            }))
+      });
+      it.skip('should go back to normal bucket configuration after erl ttl is reached');
+      it.skip('should refill with erl refill rate when erl is active');
+      it.skip('should emit an event when activating ERL');
+    });
   });
 
   describe('PUT', () => {

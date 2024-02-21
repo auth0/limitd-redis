@@ -837,22 +837,39 @@ describe('LimitDBRedis', () => {
           assert.equal(result.remaining, 7); // Total used tokens so far: 3
         });
       })
-      it('should use default ttl if erl activation period is not configured',  async (done) => {
+      it('should use default ttl if erl activation period is not configured',   (done) => {
         const bucketName = 'test-bucket';
-        await db.configurateBucket(bucketName, {
-          size: 2,
+        db.configurateBucket(bucketName, {
+          size: 1,
           per_minute: 1,
           elevated_limits: {
             size: 10,
             per_minute: 1,
-            activation_period_minutes: 15,
           }
         });
-
         takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
             .then(() => takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'}))
             .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
-              assert.equal(ttl, 900); // 15 minutes in seconds TODO: store default somewhere and compare with it here instead of hardcoded 900
+              assert.equal(ttl, 900); // 15 minutes in seconds
+              done()
+            }))
+      });
+      it('should use ttl calculated using erl activation period if erl activation period is configured',   (done) => {
+        const bucketName = 'test-bucket';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 1,
+            activation_period_minutes: 20,
+          }
+        });
+        takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'})
+            .then(() => takeElevatedPromise({type: bucketName, key: 'some_key', erlIsActiveKey: 'some_erl_active_identifier'}))
+            .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
+              assert.equal(ttl, 1200); // 20 minutes in seconds
+              done()
             }))
       });
       it.skip('should go back to normal bucket configuration after erl ttl is reached');

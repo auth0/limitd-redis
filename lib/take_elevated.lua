@@ -6,6 +6,8 @@ local drip_interval               = tonumber(ARGV[5])
 local erl_tokens_per_ms           = tonumber(ARGV[6])
 local erl_bucket_size             = tonumber(ARGV[7])
 local erl_activation_period_seconds  = tonumber(ARGV[8])
+local erl_quota_amount              = tonumber(ARGV[9])
+local erl_quota_expiration_epoch  = tonumber(ARGV[10])
 
 -- the key to use for pulling last bucket state from redis
 local lastBucketStateKey = KEYS[1]
@@ -13,6 +15,9 @@ local lastBucketStateKey = KEYS[1]
 -- the key for checking in redis if elevated rate limits (erl) were activated earlier
 local erlKey = KEYS[2]
 local is_erl_activated = redis.call('EXISTS', erlKey)
+
+-- the key for erl quota counting
+local erlQuotaKey = KEYS[3]
 
 -- get current bucket state
 local current = redis.pcall('HMGET', lastBucketStateKey, 'd', 'r')
@@ -41,6 +46,19 @@ local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, cu
     end
 end
 
+local function takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch, current_timestamp_ms)
+    local erlQuotaExists = redis.call('EXISTS', erlQuotaKey)
+    local erlQuota = erl_quota_amount
+    if erlQuotaExists == 1 then
+        erlQuota = tonumber(redis.call('GET', erlQuotaKey))
+    end
+    local newERLQuota = erlQuota-1
+    if newERLQuota >= 0 then
+        redis.call('SET', erlQuotaKey, newERLQuota, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
+    end
+    return erlQuota
+end
+
 -- Enable verbatim replication to ensure redis sends script's source code to all masters
 -- managing the sharded database in a clustered deployment.
 -- https://redis.io/docs/interact/programmability/eval-intro/#:~:text=scripts%20debugger.-,Script%20replication,-In%20standalone%20deployments
@@ -56,6 +74,7 @@ end
 
 local enough_tokens = bucket_content_after_refill >= tokens_to_take
 local bucket_content_after_take = bucket_content_after_refill
+local erlQuota = 0
 
 if enough_tokens then
     if is_erl_activated == 1 then
@@ -70,12 +89,15 @@ else
         local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
         local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take
         if enough_tokens_after_erl_activation then
-            enough_tokens = enough_tokens_after_erl_activation -- we are returning this value, thus setting it
-            bucket_content_after_take = math.min(bucket_content_after_erl_activation - tokens_to_take, erl_bucket_size)
-            -- save erl state
-            redis.call('SET', erlKey, '1')
-            redis.call('EXPIRE', erlKey, erl_activation_period_seconds)
-            is_erl_activated = 1
+            erlQuota = takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch, current_timestamp_ms)
+            if erlQuota > 0 then
+                enough_tokens = enough_tokens_after_erl_activation -- we are returning this value, thus setting it
+                bucket_content_after_take = math.min(bucket_content_after_erl_activation - tokens_to_take, erl_bucket_size)
+                -- save erl state
+                redis.call('SET', erlKey, '1')
+                redis.call('EXPIRE', erlKey, erl_activation_period_seconds)
+                is_erl_activated = 1
+            end
         end
     end
 end
@@ -95,4 +117,5 @@ if drip_interval > 0 then
     end
 end
 
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, is_erl_activated }
+-- Return the current quota
+return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, is_erl_activated, erlQuota}

@@ -170,7 +170,7 @@ The result object has:
 This take operation allows the use of elevated rate limits if it corresponds.
 
 ```js
-limitd.takeElevated(type, key, { count, configOverride, erlIsActive }, (err, result) => {
+limitd.takeElevated(type, key, { count, configOverride, erlIsActive, erlQuota }, (err, result) => {
   console.log(result);
 });
 ```
@@ -182,6 +182,19 @@ limitd.takeElevated(type, key, { count, configOverride, erlIsActive }, (err, res
 -  `count`: the amount of tokens you need. This is optional and the default is 1.
 -  `configOverride`: caller-provided bucket configuration for this operation
 -  `erlIsActiveKey`: (string) the identifier of the ERL activation for the bucket.
+-  `erlQuota`: (object)
+  - `key`: (string) the identifier of the ERL quota bucket name.
+  - `per_cal_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
+
+`erlQuota.per_cal_month` is the only refill rate available for ERL quota buckets at the moment. 
+The quota bucket will be used to track the amount of ERL activations that can be done in a calendar month. 
+If the quota bucket is empty, the ERL activation will not be possible. 
+The quota bucket will be refilled at the beginning of every calendar month.
+
+For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `per_cal_month: 5`.
+That means that the user can activate ERL for the bucket 5 times in a month, and after that, the ERL activation will not be possible until the start of the next month.
+
+The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_cal_month * erl_activation_period_seconds`. 
 
 The result object has:
 -  `conformant` (boolean): true if the requested amount is conformant to the limit.
@@ -189,6 +202,7 @@ The result object has:
 -  `reset` (int / unix timestamp): unix timestamp of the date when the bucket will be full again.
 -  `limit` (int): the size of the bucket.
 -  `erl_activated` (boolean): true if the bucket has ERL activated at the time of the request. Only returned for buckets that have ERL configured.
+-  `erl_quota_count` (int): If erl was activated in the current request, this value contains the current quota count. Otherwise, -1 is returned.
 
 ## PUT
 

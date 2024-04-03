@@ -1,13 +1,13 @@
-local tokens_per_ms               = tonumber(ARGV[1])
-local bucket_size                 = tonumber(ARGV[2])
-local tokens_to_take              = tonumber(ARGV[3])
-local ttl                         = tonumber(ARGV[4])
-local drip_interval               = tonumber(ARGV[5])
-local erl_tokens_per_ms           = tonumber(ARGV[6])
-local erl_bucket_size             = tonumber(ARGV[7])
-local erl_activation_period_seconds  = tonumber(ARGV[8])
-local erl_quota_amount              = tonumber(ARGV[9])
-local erl_quota_expiration_epoch  = tonumber(ARGV[10])
+local tokens_per_ms = tonumber(ARGV[1])
+local bucket_size = tonumber(ARGV[2])
+local tokens_to_take = tonumber(ARGV[3])
+local ttl = tonumber(ARGV[4])
+local drip_interval = tonumber(ARGV[5])
+local erl_tokens_per_ms = tonumber(ARGV[6])
+local erl_bucket_size = tonumber(ARGV[7])
+local erl_activation_period_seconds = tonumber(ARGV[8])
+local erl_quota_amount = tonumber(ARGV[9])
+local erl_quota_expiration_epoch = tonumber(ARGV[10])
 
 -- the key to use for pulling last bucket state from redis
 local lastBucketStateKey = KEYS[1]
@@ -52,7 +52,7 @@ local function takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_
     if erlQuotaExists == 1 then
         erlQuota = tonumber(redis.call('GET', erlQuotaKey))
     end
-    local newERLQuota = erlQuota-1
+    local newERLQuota = erlQuota - 1
     if newERLQuota >= 0 then
         redis.call('SET', erlQuotaKey, newERLQuota, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
     end
@@ -66,7 +66,7 @@ redis.replicate_commands()
 
 -- calculate new bucket content
 local bucket_content_after_refill
-if is_erl_activated==1 then
+if is_erl_activated == 1 then
     bucket_content_after_refill = calculateNewBucketContent(current, erl_tokens_per_ms, erl_bucket_size, current_timestamp_ms)
 else
     bucket_content_after_refill = calculateNewBucketContent(current, tokens_per_ms, bucket_size, current_timestamp_ms)
@@ -104,8 +104,8 @@ end
 
 -- save bucket state
 redis.call('HMSET', lastBucketStateKey,
-            'd', current_timestamp_ms,
-            'r', bucket_content_after_take)
+        'd', current_timestamp_ms,
+        'r', bucket_content_after_take)
 redis.call('EXPIRE', lastBucketStateKey, ttl)
 
 local reset_ms = 0
@@ -118,4 +118,4 @@ if drip_interval > 0 then
 end
 
 -- Return the current quota
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, is_erl_activated, erlQuota}
+return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, is_erl_activated, erlQuota }

@@ -74,7 +74,7 @@ end
 
 local enough_tokens = bucket_content_after_refill >= tokens_to_take
 local bucket_content_after_take = bucket_content_after_refill
-local erlQuota = 0
+local erlQuota = -1
 
 if enough_tokens then
     if is_erl_activated == 1 then

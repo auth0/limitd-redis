@@ -1228,6 +1228,37 @@ describe('LimitDBRedis', () => {
           });
         });
 
+        it('should return erl_quota_count >= 0 when ERL gets activated', (done) => {
+          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+
+          // check erl not activated yet
+          redisExistsPromise(erlIsActiveKey)
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // check erlQuotaKey does not exist
+            .then(() => redisExistsPromise(params.erlQuota.key))
+            .then((erlQuotaKeyExists) => assert.equal(erlQuotaKeyExists, 0))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then(() => redisExistsPromise(erlIsActiveKey))
+            .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
+            // next takeElevated should activate ERL
+            .then(() => takeElevatedPromise(params))
+            .then((response) => assert.isTrue(response.erl_activated) && assert.isAtLeast(response.erl_quota_count, 0))
+            .then(() => done());
+        });
+
+        it('should return erl_quota_count = -1 when ERL had already been activated', (done) => {
+          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+
+          // setup ERL
+          redisSetPromise(erlIsActiveKey, 1)
+            .then(() => redisSetPromise(params.erlQuota.key, params.erlQuota.per_cal_month - 1))
+            // takeElevated with ERL activated
+            .then(() => takeElevatedPromise(params))
+            .then((response) => assert.isTrue(response.erl_activated) && assert.equal(response.erl_quota_count, -1))
+            .then(() => done());
+        });
+
         it('should set ttl accordingly on erlQuotaKey when we activate ERL', (done) => {
           params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
 
@@ -1239,8 +1270,8 @@ describe('LimitDBRedis', () => {
           redisExistsPromise(erlIsActiveKey)
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // check erlQuotaKey does not exist
-            .then(() => redisExistsPromise(params.erlQuota.key)
-              .then((erlQuotaKeyExists) => assert.equal(erlQuotaKeyExists, 0)))
+            .then(() => redisExistsPromise(params.erlQuota.key))
+            .then((erlQuotaKeyExists) => assert.equal(erlQuotaKeyExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
             .then(() => redisExistsPromise(erlIsActiveKey))

@@ -201,7 +201,7 @@ The result object has:
 -  `reset` (int / unix timestamp): unix timestamp of the date when the bucket will be full again.
 -  `limit` (int): the size of the bucket.
 -  `erl_activated` (boolean): true if the bucket has ERL activated at the time of the request. Only returned for buckets that have ERL configured.
--  `erl_quota_count` (int): If erl was activated in the current request, this value contains the current quota count. Otherwise, -1 is returned.
+-  `erl_quota_count` (int): If erl was activated in the current request, this value contains the current quota count, which is the number of times ERL can be activated. Otherwise, -1 is returned.
 
 ## PUT
 

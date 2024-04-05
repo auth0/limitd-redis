@@ -1,7 +1,7 @@
 /* eslint-env node, mocha */
 const assert = require('chai').assert;
 
-const { extractERLQuota } = require('../lib/utils');
+const { getERLQuotaAmountAndExpiration } = require('../lib/utils');
 const { set, reset } = require('mockdate');
 
 describe('utils', () => {
@@ -24,7 +24,7 @@ describe('utils', () => {
           }
         };
 
-        const result = extractERLQuota(params);
+        const result = getERLQuotaAmountAndExpiration(params);
 
         assert.equal(result.key, params.erlQuota.key);
         assert.equal(result.amount, params.erlQuota.per_cal_month);

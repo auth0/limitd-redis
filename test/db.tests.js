@@ -1329,20 +1329,24 @@ describe('LimitDBRedis', () => {
         });
 
         it('should decrease erlQuota when we activate ERL', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+          // activating ERL with per_cal_month=1 is testing a border case to make sure decreasing the quota
+          // is not interpreted in the script as no quota left for activating ERL
+          params.erlQuota = { key: 'erlquotakey', per_cal_month: 1 };
 
           // check erl not activated yet
           redisExistsPromise(erlIsActiveKey)
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // check erlQuotaKey does not exist
-            .then(() => redisExistsPromise(params.erlQuota.key)
-              .then((erlQuotaKeyExists) => assert.equal(erlQuotaKeyExists, 0)))
+            .then(() => redisExistsPromise(params.erlQuota.key))
+            .then((erlQuotaKeyExists) => assert.equal(erlQuotaKeyExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.erl_activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
-            // erl now activated
+            // next takeElevated should activate ERL and return conformant
             .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.erl_activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 1))
             // check erlQuota should be decreased by 1

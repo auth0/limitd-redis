@@ -15,7 +15,7 @@ describe('utils', () => {
     }];
 
     dateTests.forEach(test => {
-      it(`should return appropriate key, amount., and expiration when there's ${test.name}`, () => {
+      it(`should return appropriate key, amount, and expiration when there's ${test.name}`, () => {
         set(test.date);
 
         const params = {

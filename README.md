@@ -193,8 +193,7 @@ The quota bucket will be refilled at the beginning of every calendar month.
 
 For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `per_cal_month: 5`.
 That means that the user can activate ERL for the bucket 5 times in a month, and after that, the ERL activation will not be possible until the start of the next month.
-
-The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_cal_month * erl_activation_period_seconds`. 
+The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_cal_month * erl_activation_period_seconds / 60`.
 
 The result object has:
 -  `conformant` (boolean): true if the requested amount is conformant to the limit.

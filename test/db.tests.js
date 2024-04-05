@@ -178,7 +178,7 @@ describe('LimitDBRedis', () => {
         name: 'elevated take',
         init: () => db.configurateBuckets(elevatedBuckets),
         take: (params, callback) => db.takeElevated(params, callback),
-        params: { erlIsActiveKey: 'some_erl_active_identifier', erlQuota: { key: 'erlquotakey', per_cal_month: 10 } }
+        params: { erlIsActiveKey: 'some_erl_active_identifier', erlQuota: { key: 'erlquotakey', per_calendar_month: 10 } }
       }
     ];
 
@@ -853,7 +853,7 @@ describe('LimitDBRedis', () => {
           key: 'some_key',
           erlIsActiveKey: erlIsActiveKey,
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
 
         // erl not activated yet
@@ -896,7 +896,7 @@ describe('LimitDBRedis', () => {
           key: 'some_bucket_key',
           erlIsActiveKey: 'some_erl_active_identifier',
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
 
         // first call, still within normal rate limits
@@ -918,7 +918,7 @@ describe('LimitDBRedis', () => {
           key: 'some_bucket_key',
           erlIsActiveKey: 'some_erl_active_identifier',
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -956,7 +956,7 @@ describe('LimitDBRedis', () => {
           key: 'some_key ',
           erlIsActiveKey: 'some_erl_active_identifier',
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
         await db.configurateBucket(bucketName, {
           size: 2,
@@ -982,7 +982,7 @@ describe('LimitDBRedis', () => {
           key: 'some_key',
           erlIsActiveKey: 'some_erl_active_identifier',
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1006,7 +1006,7 @@ describe('LimitDBRedis', () => {
           key: 'some_key',
           erlIsActiveKey: 'some_erl_active_identifier',
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1031,7 +1031,7 @@ describe('LimitDBRedis', () => {
           key: 'some_key ',
           erlIsActiveKey: 'some_erl_active_identifier',
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1060,7 +1060,7 @@ describe('LimitDBRedis', () => {
           key: 'some_key',
           erlIsActiveKey: 'some_erl_active_identifier',
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1119,7 +1119,7 @@ describe('LimitDBRedis', () => {
           key: 'some_key',
           erlIsActiveKey: erlIsActiveKey,
           allowERL: true,
-          erlQuota: { key: 'erlquotakey', per_cal_month: 10 }
+          erlQuota: { key: 'erlquotakey', per_calendar_month: 10 }
         };
         db.takeElevated(params, (err) => {
           assert.match(err.message, /Attempted to takeElevated\(\) for a bucket with no elevated config/);
@@ -1140,7 +1140,7 @@ describe('LimitDBRedis', () => {
             type: bucketName,
             key: 'some_key',
             erlIsActiveKey: erlIsActiveKey,
-            erlQuota: { key: 'erlquotakey', per_cal_month: 10 },
+            erlQuota: { key: 'erlquotakey', per_calendar_month: 10 },
             configOverride
           };
           takeElevatedPromise(params)
@@ -1180,7 +1180,7 @@ describe('LimitDBRedis', () => {
             type: bucketName,
             key: 'some_key',
             erlIsActiveKey: erlIsActiveKey,
-            erlQuota: { key: 'erlquotakey', per_cal_month: 10 },
+            erlQuota: { key: 'erlquotakey', per_calendar_month: 10 },
             configOverride
           };
           takeElevatedPromise(params)
@@ -1229,7 +1229,7 @@ describe('LimitDBRedis', () => {
         });
 
         it('should return erl_quota_count >= 0 when ERL gets activated', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 10 };
 
           // check erl not activated yet
           redisExistsPromise(erlIsActiveKey)
@@ -1248,11 +1248,11 @@ describe('LimitDBRedis', () => {
         });
 
         it('should return erl_quota_count = -1 when ERL had already been activated', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 10 };
 
           // setup ERL
           redisSetPromise(erlIsActiveKey, 1)
-            .then(() => redisSetPromise(params.erlQuota.key, params.erlQuota.per_cal_month - 1))
+            .then(() => redisSetPromise(params.erlQuota.key, params.erlQuota.per_calendar_month - 1))
             // takeElevated with ERL activated
             .then(() => takeElevatedPromise(params))
             .then((response) => assert.isTrue(response.erl_activated) && assert.equal(response.erl_quota_count, -1))
@@ -1260,7 +1260,7 @@ describe('LimitDBRedis', () => {
         });
 
         it('should set ttl accordingly on erlQuotaKey when we activate ERL', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 10 };
 
           const eom = endOfMonthTimestamp();
           // get ms between now and eom
@@ -1282,7 +1282,7 @@ describe('LimitDBRedis', () => {
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 1))
             // check erlQuota should be decreased by 1
             .then(() => redisGetPromise(params.erlQuota.key))
-            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_cal_month - 1))
+            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_calendar_month - 1))
             // check ttl on erlQuotaKey
             .then(() => redisTTLPromise(params.erlQuota.key))
             .then((ttl) => assert.closeTo(ttl, expectedTTL, 2))
@@ -1290,7 +1290,7 @@ describe('LimitDBRedis', () => {
         });
 
         it('should keep ttl on erlQuotaKey after decreasing it', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 10 };
           let expectedTTL = 0;
 
           // check erl not activated yet
@@ -1309,7 +1309,7 @@ describe('LimitDBRedis', () => {
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 1))
             // check erlQuota should be decreased by 1
             .then(() => redisGetPromise(params.erlQuota.key))
-            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_cal_month - 1))
+            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_calendar_month - 1))
             // check ttl on erlQuotaKey
             .then(() => redisTTLPromise(params.erlQuota.key))
             .then((ttl) => expectedTTL = ttl)
@@ -1321,7 +1321,7 @@ describe('LimitDBRedis', () => {
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 1))
             // check erlQuota should be decreased by 1
             .then(() => redisGetPromise(params.erlQuota.key))
-            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_cal_month - 2))
+            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_calendar_month - 2))
             // check erlQuota keeps the TTL
             .then(() => redisTTLPromise(params.erlQuota.key))
             .then((ttl) => assert.equal(ttl, expectedTTL))
@@ -1329,9 +1329,9 @@ describe('LimitDBRedis', () => {
         });
 
         it('should decrease erlQuota when we activate ERL', (done) => {
-          // activating ERL with per_cal_month=1 is testing a border case to make sure decreasing the quota
+          // activating ERL with per_calendar_month=1 is testing a border case to make sure decreasing the quota
           // is not interpreted in the script as no quota left for activating ERL
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 1 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 1 };
 
           // check erl not activated yet
           redisExistsPromise(erlIsActiveKey)
@@ -1351,12 +1351,12 @@ describe('LimitDBRedis', () => {
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 1))
             // check erlQuota should be decreased by 1
             .then(() => redisGetPromise(params.erlQuota.key))
-            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_cal_month - 1))
+            .then((erlQuotaKeyValue) => assert.equal(erlQuotaKeyValue, params.erlQuota.per_calendar_month - 1))
             .then(() => done());
         });
 
         it('should not activate ERL when erlQuota is 0', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 0 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 0 };
 
           // check erl not activated yet
           redisExistsPromise(erlIsActiveKey)
@@ -1381,7 +1381,7 @@ describe('LimitDBRedis', () => {
         });
 
         it('should activate ERL when erlQuota is 1', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 1 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 1 };
 
           // check erl not activated yet
           redisExistsPromise(erlIsActiveKey)
@@ -1406,7 +1406,7 @@ describe('LimitDBRedis', () => {
         });
 
         it('should not activate ERL if erlQuotaKey exists and is 0', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 10 };
 
           // set erlQuotaKey to 0 in redis
           redisSetPromise(params.erlQuota.key, 0)
@@ -1432,7 +1432,7 @@ describe('LimitDBRedis', () => {
         });
 
         it('should activate ERL after erlQuotaKey=0 expires', (done) => {
-          params.erlQuota = { key: 'erlquotakey', per_cal_month: 10 };
+          params.erlQuota = { key: 'erlquotakey', per_calendar_month: 10 };
 
           // set erlQuotaKey to 0 in redis
           redisSetWithExpirePromise(params.erlQuota.key, 0, 1)

@@ -184,16 +184,16 @@ limitd.takeElevated(type, key, { count, configOverride, erlIsActive, erlQuota },
 -  `erlIsActiveKey`: (string) the identifier of the ERL activation for the bucket.
 -  `erlQuota`: (object)
   - `key`: (string) the identifier of the ERL quota bucket name.
-  - `per_cal_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
+  - `per_calendar_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
 
-`erlQuota.per_cal_month` is the only refill rate available for ERL quota buckets at the moment. 
+`erlQuota.per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
 The quota bucket will be used to track the amount of ERL activations that can be done in a calendar month. 
 If the quota bucket is empty, the ERL activation will not be possible. 
 The quota bucket will be refilled at the beginning of every calendar month.
 
-For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `per_cal_month: 5`.
+For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `per_calendar_month: 5`.
 That means that the user can activate ERL for the bucket 5 times in a month, and after that, the ERL activation will not be possible until the start of the next month.
-The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_cal_month * erl_activation_period_seconds / 60`.
+The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_calendar_month * erl_activation_period_seconds / 60`.
 
 The result object has:
 -  `conformant` (boolean): true if the requested amount is conformant to the limit.

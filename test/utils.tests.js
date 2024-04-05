@@ -20,14 +20,14 @@ describe('utils', () => {
 
         const params = {
           erlQuota: {
-            key: 'erlQuotaKey', per_cal_month: 192
+            key: 'erlQuotaKey', per_calendar_month: 192
           }
         };
 
         const result = getERLQuotaAmountAndExpiration(params);
 
         assert.equal(result.key, params.erlQuota.key);
-        assert.equal(result.amount, params.erlQuota.per_cal_month);
+        assert.equal(result.amount, params.erlQuota.per_calendar_month);
         assert.equal(result.expiration, test.expiration);
       });
     });

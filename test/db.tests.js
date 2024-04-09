@@ -852,7 +852,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_key',
           elevatedLimits : { erlIsActiveKey: erlIsActiveKey, erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
 
         // erl not activated yet
@@ -865,7 +864,7 @@ describe('LimitDBRedis', () => {
       });
       it('should raise an error if elevatedLimits object is not provided for a bucket with elevated_limits configuration', (done) => {
         const bucketName = 'bucket_with_elevated_limits_config';
-        const params = { type: bucketName, key: 'some_bucket_key', allowERL: true };
+        const params = { type: bucketName, key: 'some_bucket_key' };
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -894,7 +893,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_bucket_key',
           elevatedLimits: { erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
 
         db.takeElevated(params, (err) => {
@@ -916,7 +914,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_bucket_key',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', per_calendar_month: 10 },
-          allowERL: true,
         };
 
         db.takeElevated(params, (err) => {
@@ -938,7 +935,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_bucket_key',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey' },
-          allowERL: true,
         };
 
         db.takeElevated(params, (err) => {
@@ -960,7 +956,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_bucket_key',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
 
         // first call, still within normal rate limits
@@ -981,7 +976,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_bucket_key',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1018,7 +1012,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_key ',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
         await db.configurateBucket(bucketName, {
           size: 2,
@@ -1043,7 +1036,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_key',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1066,7 +1058,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_key',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1090,7 +1081,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_key ',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1118,7 +1108,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_key',
           elevatedLimits: { erlIsActiveKey: 'some_erl_active_identifier', erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1176,7 +1165,6 @@ describe('LimitDBRedis', () => {
           type: bucketName,
           key: 'some_key',
           elevatedLimits: { erlIsActiveKey: erlIsActiveKey, erlQuotaKey: 'erlquotakey', per_calendar_month: 10 },
-          allowERL: true,
         };
         db.takeElevated(params, (err) => {
           assert.match(err.message, /Attempted to takeElevated\(\) for a bucket with no elevated config/);
@@ -1262,7 +1250,6 @@ describe('LimitDBRedis', () => {
         const params = {
           type: bucketName,
           key: 'some_key',
-          allowERL: true
         };
         beforeEach(() => {
           db.configurateBucket(bucketName, {

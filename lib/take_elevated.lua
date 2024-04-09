@@ -46,15 +46,15 @@ local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, cu
     end
 end
 
-local function takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch, current_timestamp_ms)
-    local erlQuotaExists = redis.call('EXISTS', erlQuotaKey)
+local function takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch)
     local erlQuota = erl_quota_amount
-    if erlQuotaExists == 1 then
-        erlQuota = tonumber(redis.call('GET', erlQuotaKey))
+    local getQuotaResult = redis.call('GET', erlQuotaKey)
+    if type(getQuotaResult) == 'string' then
+        erlQuota = tonumber(getQuotaResult)
     end
-    local newERLQuota = erlQuota - 1
-    if newERLQuota >= 0 then
-        redis.call('SET', erlQuotaKey, newERLQuota, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
+
+    if erlQuota > 0 then
+        redis.call('SET', erlQuotaKey, erlQuota-1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
     end
     return erlQuota
 end
@@ -89,7 +89,7 @@ else
         local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
         local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take
         if enough_tokens_after_erl_activation then
-            erlQuota = takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch, current_timestamp_ms)
+            erlQuota = takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch)
             if erlQuota > 0 then
                 enough_tokens = enough_tokens_after_erl_activation -- we are returning this value, thus setting it
                 bucket_content_after_take = math.min(bucket_content_after_erl_activation - tokens_to_take, erl_bucket_size)

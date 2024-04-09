@@ -1,7 +1,7 @@
 /* eslint-env node, mocha */
 const assert = require('chai').assert;
 
-const { getERLQuotaAmountAndExpiration } = require('../lib/utils');
+const { getERLKeysQuotaAmountAndExpiration } = require('../lib/utils');
 const { set, reset } = require('mockdate');
 
 describe('utils', () => {
@@ -19,15 +19,18 @@ describe('utils', () => {
         set(test.date);
 
         const params = {
-          erlQuota: {
-            key: 'erlQuotaKey', per_calendar_month: 192
+          elevatedLimits: {
+            erlIsActiveKey: 'erlIsActiveKey',
+            erlQuotaKey: 'erlQuotaKey',
+            per_calendar_month: 192
           }
         };
 
-        const result = getERLQuotaAmountAndExpiration(params);
+        const result = getERLKeysQuotaAmountAndExpiration(params.elevatedLimits);
 
-        assert.equal(result.key, params.erlQuota.key);
-        assert.equal(result.amount, params.erlQuota.per_calendar_month);
+        assert.equal(result.erlIsActiveKey, params.elevatedLimits.erlIsActiveKey);
+        assert.equal(result.erlQuotaKey, params.elevatedLimits.erlQuotaKey);
+        assert.equal(result.amount, params.elevatedLimits.per_calendar_month);
         assert.equal(result.expiration, test.expiration);
       });
     });

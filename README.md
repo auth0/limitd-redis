@@ -181,9 +181,9 @@ limitd.takeElevated(type, key, { count, configOverride, erlIsActive, erlQuota },
 -  `key`: the identifier of the bucket.
 -  `count`: the amount of tokens you need. This is optional and the default is 1.
 -  `configOverride`: caller-provided bucket configuration for this operation
--  `erlIsActiveKey`: (string) the identifier of the ERL activation for the bucket.
--  `erlQuota`: (object)
-  - `key`: (string) the identifier of the ERL quota bucket name.
+-  `elevatedLimits`: (object)
+  - `erlIsActiveKey`: (string) the identifier of the ERL activation for the bucket.
+  - `erlQuotaKey`: (string) the identifier of the ERL quota bucket name.
   - `per_calendar_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
 
 `erlQuota.per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 

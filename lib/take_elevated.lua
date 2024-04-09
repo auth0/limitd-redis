@@ -17,7 +17,7 @@ local erlKey = KEYS[2]
 local is_erl_activated = redis.call('EXISTS', erlKey)
 
 -- the key for erl quota counting
-local erlQuotaKey = KEYS[3]
+local erl_quota_key = KEYS[3]
 
 -- get current bucket state
 local current = redis.pcall('HMGET', lastBucketStateKey, 'd', 'r')
@@ -46,17 +46,17 @@ local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, cu
     end
 end
 
-local function takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch)
-    local erlQuota = erl_quota_amount
-    local getQuotaResult = redis.call('GET', erlQuotaKey)
-    if type(getQuotaResult) == 'string' then
-        erlQuota = tonumber(getQuotaResult)
+local function takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
+    local erl_quota = erl_quota_amount
+    local get_quota_result = redis.call('GET', erl_quota_key)
+    if type(get_quota_result) == 'string' then
+        erl_quota = tonumber(get_quota_result)
     end
 
-    if erlQuota > 0 then
-        redis.call('SET', erlQuotaKey, erlQuota-1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
+    if erl_quota > 0 then
+        redis.call('SET', erl_quota_key, erl_quota -1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
     end
-    return erlQuota
+    return erl_quota
 end
 
 -- Enable verbatim replication to ensure redis sends script's source code to all masters
@@ -74,7 +74,7 @@ end
 
 local enough_tokens = bucket_content_after_refill >= tokens_to_take
 local bucket_content_after_take = bucket_content_after_refill
-local erlQuota = -1
+local erl_quota = -1
 local erl_triggered = false
 
 if enough_tokens then
@@ -90,8 +90,8 @@ else
         local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
         local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take
         if enough_tokens_after_erl_activation then
-            erlQuota = takeERLQuota(erlQuotaKey, erl_quota_amount, erl_quota_expiration_epoch)
-            if erlQuota > 0 then
+            erl_quota = takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
+            if erl_quota > 0 then
                 enough_tokens = enough_tokens_after_erl_activation -- we are returning this value, thus setting it
                 bucket_content_after_take = math.min(bucket_content_after_erl_activation - tokens_to_take, erl_bucket_size)
                 -- save erl state
@@ -120,4 +120,4 @@ if drip_interval > 0 then
 end
 
 -- Return the current quota
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erlQuota }
+return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota }

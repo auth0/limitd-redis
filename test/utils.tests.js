@@ -19,18 +19,18 @@ describe('utils', () => {
         set(test.date);
 
         const params = {
-          elevatedLimits: {
-            erlIsActiveKey: 'erlIsActiveKey',
-            erlQuotaKey: 'erlQuotaKey',
+          elevated_limits: {
+            erl_is_active_key: 'erl_is_active_key',
+            erl_quota_key: 'erl_quota_key',
             per_calendar_month: 192
           }
         };
 
-        const result = getERLKeysQuotaAmountAndExpiration(params.elevatedLimits);
+        const result = getERLKeysQuotaAmountAndExpiration(params.elevated_limits);
 
-        assert.equal(result.erlIsActiveKey, params.elevatedLimits.erlIsActiveKey);
-        assert.equal(result.erlQuotaKey, params.elevatedLimits.erlQuotaKey);
-        assert.equal(result.amount, params.elevatedLimits.per_calendar_month);
+        assert.equal(result.erl_is_active_key, params.elevated_limits.erl_is_active_key);
+        assert.equal(result.erl_quota_key, params.elevated_limits.erl_quota_key);
+        assert.equal(result.amount, params.elevated_limits.per_calendar_month);
         assert.equal(result.expiration, test.expiration);
       });
     });

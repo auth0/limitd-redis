@@ -119,9 +119,9 @@ The feature aims to provide a way to temporarily allow a higher rate of requests
 
 To be able to allow its use within limitd-redis, you need to:
 1. call the `takeElevated` method.
-2. pass the `elevatedLimits` parameter with the following properties:
-   - `erlIsActiveKey`: the identifier of the ERL activation for the bucket. This works similarly to the `key` you pass to `limitd.take`, which is the identifier of the bucket; however it's used to track the ERL activation for the bucket instead
-   - `erlQuotaKey`: the identifier of the ERL quota bucket name.
+2. pass the `elevated_limits` parameter with the following properties:
+   - `erl_is_active_key`: the identifier of the ERL activation for the bucket. This works similarly to the `key` you pass to `limitd.take`, which is the identifier of the bucket; however it's used to track the ERL activation for the bucket instead
+   - `erl_quota_key`: the identifier of the ERL quota bucket name.
    - `per_calendar_month`: the amount of tokens that the quota bucket will receive on every calendar month.
 3. make sure that the bucket definition has ERL configured.
 
@@ -143,7 +143,7 @@ buckets = {
 ```
 
 ### ERL Quota
-ERL quota represents the number of ERL activations that can be performed in a calendar month for the given `erlQuotaKey`.
+ERL quota represents the number of ERL activations that can be performed in a calendar month for the given `erl_quota_key`.
 
 When ERL is triggered, it will keep activated for the `erl_activation_period_seconds` defined in the bucket configuration.
 
@@ -182,7 +182,7 @@ The result object has:
 This take operation allows the use of elevated rate limits if it corresponds.
 
 ```js
-limitd.takeElevated(type, key, { count, configOverride, elevatedLimits }, (err, result) => {
+limitd.takeElevated(type, key, { count, configOverride, elevated_limits }, (err, result) => {
   console.log(result);
 });
 ```
@@ -193,9 +193,9 @@ limitd.takeElevated(type, key, { count, configOverride, elevatedLimits }, (err, 
 -  `key`: the identifier of the bucket.
 -  `count`: the amount of tokens you need. This is optional and the default is 1.
 -  `configOverride`: caller-provided bucket configuration for this operation
--  `elevatedLimits`: (object)
-  - `erlIsActiveKey`: (string) the identifier of the ERL activation for the bucket.
-  - `erlQuotaKey`: (string) the identifier of the ERL quota bucket name.
+-  `elevated_limits`: (object)
+  - `erl_is_active_key`: (string) the identifier of the ERL activation for the bucket.
+  - `erl_quota_key`: (string) the identifier of the ERL quota bucket name.
   - `per_calendar_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
 
 `erlQuota.per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
@@ -215,7 +215,7 @@ The result object has:
 -  `elevated_limits` (object)
   -  `triggered` (boolean): true if ERL was triggered in the current request.
   -  `activated` (boolean): true if ERL is activated. Not necessarily triggered in this call.
-  -  `quota_count` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count for the given `erlQuotaKey`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+  -  `quota_count` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
 
 Example of interpretation:
 ``` javascript

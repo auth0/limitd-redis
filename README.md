@@ -182,7 +182,7 @@ The result object has:
 This take operation allows the use of elevated rate limits if it corresponds.
 
 ```js
-limitd.takeElevated(type, key, { count, configOverride, erlIsActive, erlQuota }, (err, result) => {
+limitd.takeElevated(type, key, { count, configOverride, elevatedLimits }, (err, result) => {
   console.log(result);
 });
 ```

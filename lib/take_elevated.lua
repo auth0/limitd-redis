@@ -75,6 +75,7 @@ end
 local enough_tokens = bucket_content_after_refill >= tokens_to_take
 local bucket_content_after_take = bucket_content_after_refill
 local erlQuota = -1
+local erl_triggered = false
 
 if enough_tokens then
     if is_erl_activated == 1 then
@@ -97,6 +98,7 @@ else
                 redis.call('SET', erlKey, '1')
                 redis.call('EXPIRE', erlKey, erl_activation_period_seconds)
                 is_erl_activated = 1
+                erl_triggered = true
             end
         end
     end
@@ -118,4 +120,4 @@ if drip_interval > 0 then
 end
 
 -- Return the current quota
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, is_erl_activated, erlQuota }
+return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erlQuota }

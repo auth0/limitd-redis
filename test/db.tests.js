@@ -960,11 +960,11 @@ describe('LimitDBRedis', () => {
 
         // first call, still within normal rate limits
         await takeElevatedPromise(params).then((result) => {
-          assert.isFalse(result.erl_activated);
+          assert.isFalse(result.elevated_limits.activated);
         });
         // second call, normal rate limits exceeded and erl is activated
         await takeElevatedPromise(params).then((result) => {
-          assert.isTrue(result.erl_activated);
+          assert.isTrue(result.elevated_limits.activated);
           assert.isTrue(result.conformant);
           assert.equal(result.remaining, 8);
         });
@@ -989,20 +989,20 @@ describe('LimitDBRedis', () => {
         // first call, still within normal rate limits
         await takeElevatedPromise(params).then((result) => {
           assert.isTrue(result.conformant);
-          assert.isFalse(result.erl_activated);
+          assert.isFalse(result.elevated_limits.activated);
           assert.equal(result.remaining, 0);
         });
         // second call, normal rate limits exceeded and erl is activated.
         // tokens in bucket is going to be 0 after this call (size 2 - 2 calls)
         await takeElevatedPromise(params).then((result) => {
           assert.isTrue(result.conformant);
-          assert.isTrue(result.erl_activated);
+          assert.isTrue(result.elevated_limits.activated);
           assert.equal(result.remaining, 0);
         });
         // third call, erl rate limit exceeded
         await takeElevatedPromise(params).then((result) => {
           assert.isFalse(result.conformant); // being rate limited
-          assert.isTrue(result.erl_activated);
+          assert.isTrue(result.elevated_limits.activated);
           assert.equal(result.remaining, 0);
         });
       });
@@ -1026,7 +1026,7 @@ describe('LimitDBRedis', () => {
         await takeElevatedPromise(params);
         await takeElevatedPromise(params).then((result) => {
           assert.isTrue(result.conformant);
-          assert.isTrue(result.erl_activated);
+          assert.isTrue(result.elevated_limits.activated);
           assert.equal(result.remaining, 7); // Total used tokens so far: 3
         });
       });
@@ -1097,7 +1097,7 @@ describe('LimitDBRedis', () => {
           .then(() => takeElevatedPromise(params)) // refill with erl refill rate
           .then((result) => {
             assert.isTrue(result.conformant);
-            assert.isTrue(result.erl_activated);
+            assert.isTrue(result.elevated_limits.activated);
             assert.equal(result.remaining, 3);
             done();
           });
@@ -1112,11 +1112,11 @@ describe('LimitDBRedis', () => {
         db.configurateBucket(bucketName, {
           size: 1,
           per_interval: 1,
-          interval: 2,
+          interval: 20, // 1 token every 20 ms (50 RPS)
           elevated_limits: {
             size: 5,
             per_interval: 1,
-            interval: 5,
+            interval: 10, // 1 token every 10 ms (100 RPS)
           }
         });
 
@@ -1124,13 +1124,14 @@ describe('LimitDBRedis', () => {
         takeElevatedPromise(params)
           // second call. erl activated and token taken. tokens in bucket: 3
           .then(() => takeElevatedPromise(params))
-          // wait for 5ms, refill 1 token while erl active. tokens in bucket: 4
-          .then(() => new Promise((resolve) => setTimeout(resolve, 5)))
+          .then((result) => assert.equal(result.remaining, 3))
+          // wait for 10ms, refill 1 token while erl active. tokens in bucket: 4
+          .then(() => new Promise((resolve) => setTimeout(resolve, 10)))
           // take 1 token. tokens in bucket: 3
           .then(() => takeElevatedPromise(params))
           .then((result) => {
             assert.isTrue(result.conformant);
-            assert.isTrue(result.erl_activated);
+            assert.isTrue(result.elevated_limits.activated);
             assert.equal(result.remaining, 3);
           })
           // disable ERL, go back to standard bucket size and refill rate
@@ -1139,16 +1140,16 @@ describe('LimitDBRedis', () => {
           .then(() => takePromise(params))
           .then((result) => {
             assert.isTrue(result.conformant);
-            assert.notExists(result.erl_activated);
+            assert.notExists(result.elevated_limits);
             assert.equal(result.remaining, 0);
           })
           // wait for 2ms, refill 1 token while erl inactive. tokens in bucket: 1
-          .then(() => new Promise((resolve) => setTimeout(resolve, 2)))
+          .then(() => new Promise((resolve) => setTimeout(resolve, 20)))
           // take 1 token. tokens in bucket: 0
           .then(() => takePromise(params))
           .then((result) => {
             assert.isTrue(result.conformant);
-            assert.notExists(result.erl_activated);
+            assert.notExists(result.elevated_limits);
             assert.equal(result.remaining, 0);
             done();
           });
@@ -1190,13 +1191,13 @@ describe('LimitDBRedis', () => {
           takeElevatedPromise(params)
             .then((result) => {
               assert.isTrue(result.conformant);
-              assert.isFalse(result.erl_activated);
+              assert.isFalse(result.elevated_limits.activated);
             })
             .then(() => takeElevatedPromise(params))
             .then(() => takeElevatedPromise(params))
             .then((result) => {
               assert.isTrue(result.conformant);
-              assert.isTrue(result.erl_activated);
+              assert.isTrue(result.elevated_limits.activated);
               assert.equal(result.remaining, 0);
             })
             .then(() => takeElevatedPromise(params))
@@ -1229,12 +1230,12 @@ describe('LimitDBRedis', () => {
           takeElevatedPromise(params)
             .then((result) => {
               assert.isTrue(result.conformant);
-              assert.isFalse(result.erl_activated);
+              assert.isFalse(result.elevated_limits.activated);
             })
             .then(() => takeElevatedPromise(params))
             .then((result) => {
               assert.isTrue(result.conformant);
-              assert.isTrue(result.erl_activated);
+              assert.isTrue(result.elevated_limits.activated);
               db.redis.ttl(erlIsActiveKey, (err, ttl) => {
                 assert.equal(ttl, 60); // uses specified activation period
                 done();
@@ -1262,7 +1263,7 @@ describe('LimitDBRedis', () => {
           });
         });
 
-        it('should return erl_quota_count >= 0 when ERL gets activated', (done) => {
+        it('should return erl_quota_count >= 0 when ERL is triggered', (done) => {
           params.elevatedLimits = { erlIsActiveKey: erlIsActiveKey, erlQuotaKey: 'erlquotakey', per_calendar_month: 10 };
 
           // check erl not activated yet
@@ -1277,7 +1278,7 @@ describe('LimitDBRedis', () => {
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // next takeElevated should activate ERL
             .then(() => takeElevatedPromise(params))
-            .then((response) => assert.isTrue(response.erl_activated) && assert.isAtLeast(response.erl_quota_count, 0))
+            .then((response) => assert.isTrue(response.elevated_limits.triggered) && assert.isTrue(response.elevated_limits.activated) && assert.isAtLeast(response.elevated_limits.quota_count, 0))
             .then(() => done());
         });
 
@@ -1289,7 +1290,7 @@ describe('LimitDBRedis', () => {
             .then(() => redisSetPromise(params.elevatedLimits.erlQuotaKey, params.elevatedLimits.per_calendar_month - 1))
             // takeElevated with ERL activated
             .then(() => takeElevatedPromise(params))
-            .then((response) => assert.isTrue(response.erl_activated) && assert.equal(response.erl_quota_count, -1))
+            .then((response) => assert.isFalse(response.elevated_limits.triggered) && assert.isTrue(response.elevated_limits.activated) && assert.equal(response.elevated_limits.quota_count, -1))
             .then(() => done());
         });
 
@@ -1375,12 +1376,12 @@ describe('LimitDBRedis', () => {
             .then((erlQuotaKeyExists) => assert.equal(erlQuotaKeyExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.erl_activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // next takeElevated should activate ERL and return conformant
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.erl_activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 1))
             // check erlQuota should be decreased by 1
@@ -1400,12 +1401,12 @@ describe('LimitDBRedis', () => {
               .then((erlQuotaKeyExists) => assert.equal(erlQuotaKeyExists, 0)))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.erl_activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // next takeElevated should have attempted to activate ERL but failed
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.erl_activated))
+            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // check erlQuota was not set
@@ -1426,12 +1427,12 @@ describe('LimitDBRedis', () => {
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.erl_activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // next takeElevated should have attempted to activate ERL but failed as quota is 0
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.erl_activated))
+            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // check erlQuota is still 0
@@ -1454,12 +1455,12 @@ describe('LimitDBRedis', () => {
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.erl_activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // next takeElevated should have attempted to activate ERL but failed as quota is 0
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.erl_activated))
+            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 0))
             // check erlQuota is still 0
@@ -1473,7 +1474,7 @@ describe('LimitDBRedis', () => {
             .then((erlQuotaKeyValue) => assert.isNull(erlQuotaKeyValue))
             // next takeElevated should activate ERL and return conformant
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.erl_activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated))
             .then(() => redisExistsPromise(erlIsActiveKey))
             .then((erlIsActiveKeyExists) => assert.equal(erlIsActiveKeyExists, 1))
             // check erlQuota was decreased

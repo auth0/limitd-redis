@@ -114,6 +114,10 @@ overrides: {
 ```
 
 ## ERL (Elevated Rate Limits)
+### Prerequisites
+Redis 6.2+ is required to use ERL.
+
+### Introduction
 ERL is a feature that allows you to define a different set of limits that kick in when the bucket is empty.
 The feature aims to provide a way to temporarily allow a higher rate of requests when the bucket is empty, for a limited period of time.
 

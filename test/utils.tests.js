@@ -30,8 +30,8 @@ describe('utils', () => {
 
         assert.equal(result.erl_is_active_key, params.elevated_limits.erl_is_active_key);
         assert.equal(result.erl_quota_key, params.elevated_limits.erl_quota_key);
-        assert.equal(result.amount, params.elevated_limits.per_calendar_month);
-        assert.equal(result.expiration, test.expiration);
+        assert.equal(result.erl_quota_amount, params.elevated_limits.per_calendar_month);
+        assert.equal(result.erl_quota_expiration, test.expiration);
       });
     });
 

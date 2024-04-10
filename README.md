@@ -114,14 +114,22 @@ overrides: {
 ```
 
 ## ERL (Elevated Rate Limits)
+### Prerequisites
+Redis 6.2+ is required to use ERL.
+
+### Introduction
 ERL is a feature that allows you to define a different set of limits that kick in when the bucket is empty.
 The feature aims to provide a way to temporarily allow a higher rate of requests when the bucket is empty, for a limited period of time.
 
 To be able to allow its use within limitd-redis, you need to:
 1. call the `takeElevated` method.
-2. pass the `erlIsActiveKey` parameter with the identifier of the ERL activation for the bucket. This works similarly to the `key` you pass to `limitd.take`, which is the identifier of the bucket; however it's used to track the ERL activation for the bucket instead.
+2. pass the `elevated_limits` parameter with the following properties:
+   - `erl_is_active_key`: the identifier of the ERL activation for the bucket. This works similarly to the `key` you pass to `limitd.take`, which is the identifier of the bucket; however it's used to track the ERL activation for the bucket instead
+   - `erl_quota_key`: the identifier of the ERL quota bucket name.
+   - `per_calendar_month`: the amount of tokens that the quota bucket will receive on every calendar month.
 3. make sure that the bucket definition has ERL configured.
 
+### Configuration
 You can configure elevated limits inside your bucket definitions as follows:
 
 ```js
@@ -137,6 +145,14 @@ buckets = {
   }
 }
 ```
+
+### ERL Quota
+ERL quota represents the number of ERL activations that can be performed in a calendar month for the given `erl_quota_key`.
+
+When ERL is triggered, it will keep activated for the `erl_activation_period_seconds` defined in the bucket configuration.
+
+The amount of minutes per month allowed in ERL mode is defined by: `per_calendar_month * erl_activation_period_seconds / 60`.
+
 
 The overrides in ERL work the same way as for the regular bucket. Both size and per_interval are mandatory when specifying an override. 
 
@@ -170,7 +186,7 @@ The result object has:
 This take operation allows the use of elevated rate limits if it corresponds.
 
 ```js
-limitd.takeElevated(type, key, { count, configOverride, erlIsActive }, (err, result) => {
+limitd.takeElevated(type, key, { count, configOverride, elevated_limits }, (err, result) => {
   console.log(result);
 });
 ```
@@ -181,14 +197,36 @@ limitd.takeElevated(type, key, { count, configOverride, erlIsActive }, (err, res
 -  `key`: the identifier of the bucket.
 -  `count`: the amount of tokens you need. This is optional and the default is 1.
 -  `configOverride`: caller-provided bucket configuration for this operation
--  `erlIsActiveKey`: (string) the identifier of the ERL activation for the bucket.
+-  `elevated_limits`: (object)
+  - `erl_is_active_key`: (string) the identifier of the ERL activation for the bucket.
+  - `erl_quota_key`: (string) the identifier of the ERL quota bucket name.
+  - `per_calendar_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
+
+`erlQuota.per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
+The quota bucket will be used to track the amount of ERL activations that can be done in a calendar month. 
+If the quota bucket is empty, the ERL activation will not be possible. 
+The quota bucket will be refilled at the beginning of every calendar month.
+
+For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `per_calendar_month: 5`.
+That means that the user can activate ERL for the bucket 5 times in a month, and after that, the ERL activation will not be possible until the start of the next month.
+The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_calendar_month * erl_activation_period_seconds / 60`.
 
 The result object has:
 -  `conformant` (boolean): true if the requested amount is conformant to the limit.
 -  `remaining` (int): the amount of remaining tokens in the bucket.
 -  `reset` (int / unix timestamp): unix timestamp of the date when the bucket will be full again.
 -  `limit` (int): the size of the bucket.
--  `erl_activated` (boolean): true if the bucket has ERL activated at the time of the request. Only returned for buckets that have ERL configured.
+-  `elevated_limits` (object)
+  -  `triggered` (boolean): true if ERL was triggered in the current request.
+  -  `activated` (boolean): true if ERL is activated. Not necessarily triggered in this call.
+  -  `quota_count` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+
+Example of interpretation:
+``` javascript
+if erl_activated && erl_quota_count >= 0; // quota left in the quotaKey bucket
+if erl_activated && erl_quota_count = -1; // ERL is activated, but it wasn't triggered in this call, so we haven't identified the quota for this call.
+if !erl_activated; // ERL is not activated, hence the quota hasn't been identified for this call. 
+```
 
 ## PUT
 

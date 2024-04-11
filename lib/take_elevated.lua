@@ -75,7 +75,7 @@ end
 
 local enough_tokens = bucket_content_after_refill >= tokens_to_take
 local bucket_content_after_take = bucket_content_after_refill
-local erl_quota = -1
+local erl_quota_left = -1
 local erl_triggered = false
 
 if enough_tokens then
@@ -91,7 +91,8 @@ else
         local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
         local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take
         if enough_tokens_after_erl_activation then
-            erl_quota = takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
+            local erl_quota = takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
+            -- erl_quota contains the quota before taking one to avoid confusing erl_quota=0 with the last element of the quota
             if erl_quota > 0 then
                 enough_tokens = enough_tokens_after_erl_activation -- we are returning this value, thus setting it
                 bucket_content_after_take = math.min(bucket_content_after_erl_activation - tokens_to_take, erl_bucket_size)
@@ -99,6 +100,8 @@ else
                 redis.call('SET', erlKey, '1')
                 redis.call('EXPIRE', erlKey, erl_activation_period_seconds)
                 is_erl_activated = 1
+                -- now we remove one from the quota to return what's left in the bucket
+                erl_quota_left = erl_quota - 1
                 erl_triggered = true
             end
         end
@@ -121,4 +124,4 @@ if drip_interval > 0 then
 end
 
 -- Return the current quota
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota }
+return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota_left }

@@ -8,6 +8,7 @@ local erl_bucket_size = tonumber(ARGV[7])
 local erl_activation_period_seconds = tonumber(ARGV[8])
 local erl_quota_amount = tonumber(ARGV[9])
 local erl_quota_expiration_epoch = tonumber(ARGV[10])
+local is_erl_enabled = ARGV[11] == "true" and true or false
 
 -- the key to use for pulling last bucket state from redis
 local lastBucketStateKey = KEYS[1]
@@ -85,7 +86,7 @@ if enough_tokens then
     end
 else
     -- if tokens are not enough, see if activating erl will help.
-    if is_erl_activated == 0 then
+    if is_erl_activated == 0 and is_erl_enabled then
         local used_tokens = bucket_size - bucket_content_after_refill
         local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
         local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take

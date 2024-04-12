@@ -219,7 +219,7 @@ The result object has:
 -  `elevated_limits` (object)
   -  `triggered` (boolean): true if ERL was triggered in the current request.
   -  `activated` (boolean): true if ERL is activated. Not necessarily triggered in this call.
-  -  `quota_count` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+  -  `quota_count` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count left for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
 
 Example of interpretation:
 ``` javascript

@@ -862,7 +862,7 @@ describe('LimitDBRedis', () => {
         await takeElevatedPromise(params);
         await redisExistsPromise(erl_is_active_key).then((isActive) => assert.equal(isActive, 1));
       });
-      it('should raise an error if elevated_limits object is not provided for a bucket with elevated_limits configuration', (done) => {
+      it('should raise an error if elevated_limits object is not provided when calling takeElevated()', (done) => {
         const bucketName = 'bucket_with_elevated_limits_config';
         const params = { type: bucketName, key: 'some_bucket_key' };
         db.configurateBucket(bucketName, {
@@ -879,7 +879,7 @@ describe('LimitDBRedis', () => {
           done();
         });
       });
-      it('should raise an error if elevated_limits.erl_is_active_key is not provided for a bucket with elevated_limits configuration', (done) => {
+      it('should raise an error if elevated_limits.erl_is_active_key is not provided when calling takeElevated()', (done) => {
         const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {
           size: 1,
@@ -900,7 +900,7 @@ describe('LimitDBRedis', () => {
           done();
         });
       });
-      it('should raise an error if elevated_limits.erl_quota_key is not provided for a bucket with elevated_limits configuration', (done) => {
+      it('should raise an error if elevated_limits.erl_quota_key is not provided when calling takeElevated()', (done) => {
         const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {
           size: 1,
@@ -921,7 +921,7 @@ describe('LimitDBRedis', () => {
           done();
         });
       });
-      it('should raise an error if elevated_limits.per_calendar_month is not provided for a bucket with elevated_limits configuration', (done) => {
+      it('should raise an error if elevated_limits.per_calendar_month is not provided when calling takeElevated()', (done) => {
         const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {
           size: 1,
@@ -1155,7 +1155,7 @@ describe('LimitDBRedis', () => {
           });
       });
 
-      it('should return an error when attempting to takeElevated with no elevate config', (done) => {
+      it('should work if attempted to takeElevated with no elevated config', (done) => {
         const bucketName = 'bucket_with_no_elevated_limits_config';
         const erl_is_active_key = 'some_erl_active_identifier';
         db.configurateBucket(bucketName, {
@@ -1167,10 +1167,27 @@ describe('LimitDBRedis', () => {
           key: 'some_key',
           elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
         };
-        db.takeElevated(params, (err) => {
-          assert.match(err.message, /Attempted to takeElevated\(\) for a bucket with no elevated config/);
-          done();
-        });
+        takeElevatedPromise(params)
+          .then((result) => {
+            assert.isTrue(result.conformant);
+            assert.equal(result.remaining, 0);
+            assert.equal(result.limit, 1);
+            assert.isNotNull(result.elevated_limits);
+            assert.isFalse(result.elevated_limits.triggered);
+            assert.isFalse(result.elevated_limits.activated);
+            assert.equal(result.elevated_limits.quota_count, -1);
+          })
+          .then(() => takeElevatedPromise(params))
+          .then((result) => {
+            assert.isFalse(result.conformant);
+            assert.equal(result.remaining, 0);
+            assert.equal(result.limit, 1);
+            assert.isNotNull(result.elevated_limits);
+            assert.isFalse(result.elevated_limits.triggered);
+            assert.isFalse(result.elevated_limits.activated);
+            assert.equal(result.elevated_limits.quota_count, -1);
+          })
+          .then(done)
       });
 
       describe('overrides', () => {
@@ -1381,7 +1398,7 @@ describe('LimitDBRedis', () => {
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // next takeElevated should activate ERL and return conformant
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated) && assert.equal(result.elevated_limits.quota_count, 0))
             .then(() => redisExistsPromise(erl_is_active_key))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota should be decreased by 1

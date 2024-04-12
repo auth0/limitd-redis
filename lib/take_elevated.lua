@@ -36,13 +36,13 @@ local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, cu
         local content = current[2]
         local delta_ms = math.max(current_timestamp_ms - last_drip, 0)
         local drip_amount = delta_ms * tokens_per_ms
-        return math.min(content + drip_amount, bucket_size)
+        return math.max(content - drip_amount, 0)
     elseif current[1] and tokens_per_ms == 0 then
         -- fixed bucket
         return current[2]
     else
         -- first take of the bucket
-        return bucket_size
+        return 0
     end
 end
 
@@ -72,28 +72,26 @@ else
     bucket_content_after_refill = calculateNewBucketContent(current, tokens_per_ms, bucket_size, current_timestamp_ms)
 end
 
-local enough_tokens = bucket_content_after_refill >= tokens_to_take
+local enough_tokens = bucket_content_after_refill + tokens_to_take <= bucket_size
+local enough_tokens_after_erl_activation = bucket_content_after_refill + tokens_to_take <= erl_bucket_size
 local bucket_content_after_take = bucket_content_after_refill
 local erl_quota = -1
 local erl_triggered = false
 
-if enough_tokens then
+if enough_tokens or (is_erl_activated == 1 and enough_tokens_after_erl_activation) then
     if is_erl_activated == 1 then
-        bucket_content_after_take = math.min(bucket_content_after_refill - tokens_to_take, erl_bucket_size)
+        bucket_content_after_take = math.min(bucket_content_after_refill + tokens_to_take, erl_bucket_size)
     else
-        bucket_content_after_take = math.min(bucket_content_after_refill - tokens_to_take, bucket_size)
+        bucket_content_after_take = math.min(bucket_content_after_refill + tokens_to_take, bucket_size)
     end
 else
     -- if tokens are not enough, see if activating erl will help.
     if is_erl_activated == 0 then
-        local used_tokens = bucket_size - bucket_content_after_refill
-        local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
-        local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take
         if enough_tokens_after_erl_activation then
             erl_quota = takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
             if erl_quota > 0 then
                 enough_tokens = enough_tokens_after_erl_activation -- we are returning this value, thus setting it
-                bucket_content_after_take = math.min(bucket_content_after_erl_activation - tokens_to_take, erl_bucket_size)
+                bucket_content_after_take = math.min(bucket_content_after_refill + tokens_to_take, erl_bucket_size)
                 -- save erl state
                 redis.call('SET', erlKey, '1')
                 redis.call('EXPIRE', erlKey, erl_activation_period_seconds)
@@ -119,5 +117,12 @@ if drip_interval > 0 then
     end
 end
 
+-- calculate bucket content by used tokens
+-- note: bucket_content_after_take now means used tokens
+local bucket = bucket_size - bucket_content_after_take
+if is_erl_activated == 1 then
+    bucket = erl_bucket_size - bucket_content_after_take
+    return { bucket, enough_tokens_after_erl_activation, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota }
+end
 -- Return the current quota
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota }
+return { bucket, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota }

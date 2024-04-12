@@ -1172,6 +1172,42 @@ describe('LimitDBRedis', () => {
           done();
         });
       });
+      it('should not deduct already used tokens from new bucket for sequential erl activations', async () => {
+        const bucketName = 'test-bucket';
+        const params = {
+          type: bucketName,
+          key: 'some_key ',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        await db.configurateBucket(bucketName, {
+          size: 1,
+          per_second: 1,
+          elevated_limits: {
+            size: 3,
+            per_second: 1,
+            erl_activation_period_seconds: 1,
+          }
+        });
+        await takeElevatedPromise(params);
+        await takeElevatedPromise(params).then((result) => {
+          assert.isTrue(result.elevated_limits.activated);
+          assert.isTrue(result.elevated_limits.triggered);
+          assert.equal(result.remaining, 1);
+        });
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        await takeElevatedPromise(params).then((result) => {
+          assert.equal(result.remaining, 0);
+        });
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        // token added back to bucket here
+
+        await takeElevatedPromise(params).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isTrue(result.elevated_limits.triggered);
+          assert.isTrue(result.elevated_limits.activated);
+          assert.equal(result.remaining, 0); // Total used tokens so far: 4, and 1 token added back
+        });
+      });
 
       describe('overrides', () => {
         it('should use elevated_limits config override when provided', (done) => {
@@ -1257,7 +1293,7 @@ describe('LimitDBRedis', () => {
             size: 1,
             per_minute: 1,
             elevated_limits: {
-              size: 2,
+              size: 3,
               per_second: 2
             }
           });

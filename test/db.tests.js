@@ -1398,7 +1398,7 @@ describe('LimitDBRedis', () => {
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // next takeElevated should activate ERL and return conformant
             .then(() => takeElevatedPromise(params))
-            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated))
+            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated) && assert.equal(result.elevated_limits.quota_count, 0))
             .then(() => redisExistsPromise(erl_is_active_key))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota should be decreased by 1

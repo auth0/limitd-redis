@@ -126,7 +126,6 @@ To be able to allow its use within limitd-redis, you need to:
 2. pass the `elevated_limits` parameter with the following properties:
    - `erl_is_active_key`: the identifier of the ERL activation for the bucket. This works similarly to the `key` you pass to `limitd.take`, which is the identifier of the bucket; however it's used to track the ERL activation for the bucket instead
    - `erl_quota_key`: the identifier of the ERL quota bucket name.
-   - `per_calendar_month`: the amount of tokens that the quota bucket will receive on every calendar month.
 3. make sure that the bucket definition has ERL configured.
 
 ### Configuration
@@ -141,6 +140,7 @@ buckets = {
       size: 100, // new bucket size. already used tokens will be deducted from current bucket content upon ERL activation.
       per_second: 50, // new bucket refill rate. You can use all the other refill rate configurations defined above, such as per_minute, per_hour, per_interval etc.
       erl_activation_period_seconds: 300, // for how long the ERL configuration should remain active once activated.
+      quota_per_calendar_month: 100, // the amount of ERL activations that can be done in a calendar month. Each activation will remain active during erl_activation_period_seconds. 
     }
   }
 }
@@ -151,8 +151,7 @@ ERL quota represents the number of ERL activations that can be performed in a ca
 
 When ERL is triggered, it will keep activated for the `erl_activation_period_seconds` defined in the bucket configuration.
 
-The amount of minutes per month allowed in ERL mode is defined by: `per_calendar_month * erl_activation_period_seconds / 60`.
-
+The amount of minutes per month allowed in ERL mode is defined by: `quota_per_calendar_month * erl_activation_period_seconds / 60`.
 
 The overrides in ERL work the same way as for the regular bucket. Both size and per_interval are mandatory when specifying an override. 
 
@@ -200,7 +199,6 @@ limitd.takeElevated(type, key, { count, configOverride, elevated_limits }, (err,
 -  `elevated_limits`: (object)
   - `erl_is_active_key`: (string) the identifier of the ERL activation for the bucket.
   - `erl_quota_key`: (string) the identifier of the ERL quota bucket name.
-  - `per_calendar_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
 
 `erlQuota.per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
 The quota bucket will be used to track the amount of ERL activations that can be done in a calendar month. 

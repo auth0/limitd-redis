@@ -23,10 +23,11 @@
   },
   "devDependencies": {
     "chai": "^4.1.2",
+    "chai-exclude": "^2.1.0",
     "eslint": "^6.1.0",
     "mocha": "^5.2.0",
+    "mockdate": "^3.0.5",
     "nyc": "^14.1.1",
-    "toxiproxy-node-client": "^2.0.6",
-    "mockdate": "^3.0.5"
+    "toxiproxy-node-client": "^2.0.6"
   }
 }

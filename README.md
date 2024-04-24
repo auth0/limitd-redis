@@ -200,14 +200,14 @@ limitd.takeElevated(type, key, { count, configOverride, elevated_limits }, (err,
   - `erl_is_active_key`: (string) the identifier of the ERL activation for the bucket.
   - `erl_quota_key`: (string) the identifier of the ERL quota bucket name.
 
-`erlQuota.per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
+`quota_per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
 The quota bucket will be used to track the amount of ERL activations that can be done in a calendar month. 
 If the quota bucket is empty, the ERL activation will not be possible. 
 The quota bucket will be refilled at the beginning of every calendar month.
 
-For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `per_calendar_month: 5`.
+For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `quota_per_calendar_month: 5`.
 That means that the user can activate ERL for the bucket 5 times in a month, and after that, the ERL activation will not be possible until the start of the next month.
-The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_calendar_month * erl_activation_period_seconds / 60`.
+The total minutes allowed for ERL activation in a calendar month is calculated as follows: `quota_per_calendar_month * erl_activation_period_seconds / 60`.
 
 The result object has:
 -  `conformant` (boolean): true if the requested amount is conformant to the limit.
@@ -217,7 +217,9 @@ The result object has:
 -  `elevated_limits` (object)
   -  `triggered` (boolean): true if ERL was triggered in the current request.
   -  `activated` (boolean): true if ERL is activated. Not necessarily triggered in this call.
-  -  `quota_count` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count left for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+  -  `quota_used` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+  -  `quota_allocated`: (int): amount of quota allocated in the bucket configuration. This value is defined in the bucket configuration and is the same as `quota_per_calendar_month`.
+  -  `erl_activation_period_seconds`: (int): the ERL activation period as defined in the bucket configuration used in the current request.
 
 Example of interpretation:
 ``` javascript

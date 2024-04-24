@@ -137,13 +137,12 @@ describe('LimitdRedis', () => {
 
   describe('#takeElevated', () => {
     it('should call #handle with takeElevated as the method', (done) => {
-      const elevated_limits = { erl_is_active_key: 'erlKEY', erl_quota_key: 'quotaKEY', per_calendar_month: 100 };
+      const elevated_limits = { erl_is_active_key: 'erlKEY', erl_quota_key: 'quotaKEY' };
       client.handler = (method, type, key, opts, cb) => {
         assert.equal(method, 'takeElevated');
         assert.isNotNull(opts.elevated_limits);
         assert.equal(opts.elevated_limits.erl_is_active_key, elevated_limits.erl_is_active_key);
         assert.equal(opts.elevated_limits.erl_quota_key, elevated_limits.erl_quota_key);
-        assert.equal(opts.elevated_limits.per_calendar_month, elevated_limits.per_calendar_month);
         cb();
       };
       client.takeElevated('test', 'test', { elevated_limits: elevated_limits }, done);

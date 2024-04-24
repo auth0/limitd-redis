@@ -217,15 +217,14 @@ The result object has:
 -  `elevated_limits` (object)
   -  `triggered` (boolean): true if ERL was triggered in the current request.
   -  `activated` (boolean): true if ERL is activated. Not necessarily triggered in this call.
-  -  `quota_used` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+  -  `quota_remaining` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the remaining quota count for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
   -  `quota_allocated`: (int): amount of quota allocated in the bucket configuration. This value is defined in the bucket configuration and is the same as `quota_per_calendar_month`.
   -  `erl_activation_period_seconds`: (int): the ERL activation period as defined in the bucket configuration used in the current request.
 
 Example of interpretation:
 ``` javascript
-if erl_activated && erl_quota_count >= 0; // quota left in the quotaKey bucket
-if erl_activated && erl_quota_count = -1; // ERL is activated, but it wasn't triggered in this call, so we haven't identified the quota for this call.
-if !erl_activated; // ERL is not activated, hence the quota hasn't been identified for this call. 
+if erl_triggered // quota left in the quotaKey bucket
+if !erl_triggered // ERL wasn't triggered in this call, so we haven't identified the remaining quota.
 ```
 
 ## PUT

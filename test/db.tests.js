@@ -907,6 +907,47 @@ describe('LimitDBRedis', () => {
           done();
         });
       });
+      [
+        {
+          name: "missing activation period",
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+            quota_per_calendar_month: 10,
+          },
+        },
+        {
+            name: "missing quota_per_calendar_month",
+            elevated_limits: {
+              size: 2,
+              per_minute: 2,
+              erl_activation_period_seconds: 900,
+            },
+        },
+        {
+            name: "missing interval",
+            elevated_limits: {
+              size: 2,
+              erl_activation_period_seconds: 900,
+              quota_per_calendar_month: 10,
+            },
+        }
+      ].forEach(({ name, elevated_limits }) => {
+        it(`should raise an error if elevated_limits configuration is incomplete: ${name}`, (done) => {
+          const bucketName = 'bucket_with_elevated_limits_config';
+          const params = { type: bucketName, key: 'some_bucket_key', elevated_limits: { erl_quota_key: 'erlquotakey', erl_is_active_key: 'some_erl_active_identifier' } };
+          db.configurateBucket(bucketName, {
+            size: 1,
+            per_minute: 1,
+            elevated_limits,
+          });
+
+          db.takeElevated(params, (err) => {
+            assert.match(err.message, /Please check the bucket configuration contains all the required keys for elevated limits: size,per_interval,erl_activation_period_seconds,quota_per_calendar_month./);
+            done();
+          });
+        });
+      })
       it('should raise an error if elevated_limits.erl_is_active_key is not provided for a bucket with elevated_limits configuration', (done) => {
         const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {

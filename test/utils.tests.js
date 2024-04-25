@@ -5,7 +5,7 @@ const chaiExclude = require('chai-exclude');
 chai.use(chaiExclude);
 const assert = chai.assert;
 
-const { getERLParams, calculateQuotaExpiration, normalizeType } = require('../lib/utils');
+const { getERLParams, calculateQuotaExpiration, normalizeType, randomBetween, normalizeTemporals} = require('../lib/utils');
 const { set, reset } = require('mockdate');
 const { expect } = require('chai');
 
@@ -106,6 +106,135 @@ describe('utils', () => {
     });
   });
 
+  describe('normalizeTemporals', () => {
+    const oneDayInSeconds = 24 * 60 * 60;
+    const oneDayInMs = oneDayInSeconds * 1000;
+    const oneHourInSeconds = 60 * 60;
+    const oneHourInMs = oneHourInSeconds * 1000;
+    const oneMinuteInSeconds = 60;
+    const oneMinuteInMs = oneMinuteInSeconds * 1000;
+
+    const testCasesWithoutElevatedLimits = [
+      ['when per_interval and interval are defined', {
+        given: {
+          per_interval: 5,
+          interval: 1000,
+          size: 10,
+        },
+        expected: {
+          size: 10,
+          interval: 1000,
+          per_interval: 5,
+          ttl: 2,
+          ms_per_interval: 0.005,
+          drip_interval: 200
+        }
+      }],
+      ['when per_second is defined', {
+        given: {
+          per_second: 5,
+          size: 10,
+        },
+        expected: {
+          size: 10,
+          interval: 1000,
+          per_interval: 5,
+          ttl: 2,
+          ms_per_interval: 0.005,
+          drip_interval: 200
+        }
+      }],
+      ['when per_minute is defined', {
+        given: {
+          per_minute: 5,
+          size: 10,
+        },
+        expected: {
+          size: 10,
+          interval: oneMinuteInMs,
+          per_interval: 5,
+          ttl: oneMinuteInSeconds * 2,
+          ms_per_interval: 5 / oneMinuteInMs,
+          drip_interval: oneMinuteInMs / 5
+        }
+      }],
+      ['when per_hour is defined', {
+        given: {
+          per_hour: 5,
+          size: 10,
+        },
+        expected: {
+            size: 10,
+            interval: oneHourInMs,
+            per_interval: 5,
+            ttl: oneHourInSeconds * 2,
+            ms_per_interval: 5 / oneHourInMs,
+            drip_interval: oneHourInMs / 5
+        }
+      }],
+      ['when per_day is defined', {
+        given: {
+          per_day: 5,
+          size: 10,
+        },
+        expected: {
+          size: 10,
+          interval: oneDayInMs,
+          per_interval: 5,
+          ttl: oneDayInSeconds * 2,
+          ms_per_interval: 5 / oneDayInSeconds,
+          drip_interval: oneDayInMs / 5
+        }
+      }],
+      ['when size is undefined', {
+        given: {
+          per_second: 5
+        },
+        expected: {
+            size: 5, // takes per_second as size
+            interval: 1000,
+            per_interval: 5,
+            ttl: 1,
+            ms_per_interval: 0.005,
+            drip_interval: 200
+        }
+      }],
+    ];
+
+    testCasesWithoutElevatedLimits.forEach(([ description, { given, expected } ]) => {
+      it(`should return normalized temporals ${description}`, () => {
+        const result = normalizeTemporals(given);
+        expect(result.size).to.equal(expected.size, 'size');
+        expect(result.interval).to.equal(expected.interval, 'interval');
+        expect(result.per_interval).to.equal(expected.per_interval, 'per_interval');
+        expect(result.ttl).to.equal(expected.ttl, 'ttl');
+        expect(result.ms_per_interval).to.be.closeTo(expected.ms_per_interval, 0.001, 'ms_per_interval');
+        expect(result.drip_interval).to.be.closeTo(expected.drip_interval, 0.001, 'drip_interval');
+      });
+    });
+
+    describe('normalizeElevatedLimits tests', () => {
+      it('should normalize elevated limits', () => {
+        const input = {
+          size: 2,
+          per_second: 2,
+          erl_activation_period_seconds: 900,
+          quota_per_calendar_month: 2
+        };
+
+        const expectedOutput = {
+          size: 2,
+          per_second: 2,
+          erl_activation_period_seconds: 900,
+          quota_per_calendar_month: 2
+        };
+
+        const result = normalizeTemporals(input);
+        assert.deepEqual(result, expectedOutput);
+      });
+    });
+  });
+
   describe('quotaExpiration', () => {
     const tests = [{
       date: '2024-03-15T12:00:00.000Z', expiration: 1711929600000, name: '16 days, 12 hs left to end of month'
@@ -147,6 +276,22 @@ describe('utils', () => {
 
       assert.equal(result.erl_is_active_key, params.elevated_limits.erl_is_active_key);
       assert.equal(result.erl_quota_key, params.elevated_limits.erl_quota_key);
+    });
+  });
+
+  describe('randomBetween', () => {
+    it('should return a number between min and max', () => {
+      const min = 1;
+      const max = 5;
+      const result = randomBetween(min, max);
+      assert(result >= min && result < max, 'Returned number is within the range');
+    });
+
+    it('should swap min and max if min is greater than max', () => {
+      const min = 5;
+      const max = 1;
+      const result = randomBetween(min, max);
+      assert(result >= max && result < min, 'Returned number is within the swapped range');
     });
   });
 });

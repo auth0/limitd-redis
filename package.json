@@ -1,6 +1,6 @@
 {
   "name": "limitd-redis",
-  "version": "7.9.0",
+  "version": "8.0.0",
   "description": "A database client for limits on top of redis",
   "main": "index.js",
   "repository": {
@@ -15,7 +15,7 @@
   "dependencies": {
     "async": "^2.6.1",
     "disyuntor": "^3.5.0",
-    "ioredis": "^4.28.5",
+    "ioredis": "^5.3.2",
     "lodash": "^4.17.15",
     "lru-cache": "^4.1.5",
     "ms": "^2.1.2",

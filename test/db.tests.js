@@ -1,11 +1,12 @@
 /* eslint-env node, mocha */
-const ms       = require('ms');
-const async    = require('async');
-const _        = require('lodash');
-const LimitDB  = require('../lib/db');
-const assert   = require('chai').assert;
-const {Toxiproxy, Toxic} = require('toxiproxy-node-client');
-const crypto  = require('crypto')
+const ms = require('ms');
+const async = require('async');
+const _ = require('lodash');
+const LimitDB = require('../lib/db');
+const assert = require('chai').assert;
+const { Toxiproxy, Toxic } = require('toxiproxy-node-client');
+const crypto = require('crypto');
+const { ERL_DEFAULT_ACTIVATION_PERIOD_SECONDS, endOfMonthTimestamp } = require('../lib/utils');
 
 const buckets = {
   ip: {
@@ -77,8 +78,38 @@ const buckets = {
         per_hour: 0
       }
     }
+  },
+};
 
-  }
+const elevatedBuckets = {
+  ip: {
+    ...buckets.ip,
+    elevated_limits: {
+      size: buckets.ip.size,
+      per_minute: buckets.ip.per_second,
+    },
+  },
+  user: {
+    ...buckets.user,
+    elevated_limits: {
+      size: buckets.user.size,
+      per_minute: buckets.user.per_second,
+    },
+  },
+  global: {
+    ...buckets.global,
+    elevated_limits: {
+      size: buckets.global.size,
+      per_minute: buckets.global.per_hour,
+    },
+  },
+  tenant: {
+    ...buckets.tenant,
+    elevated_limits: {
+      size: buckets.tenant.size,
+      per_minute: buckets.tenant.per_second,
+    },
+  },
 };
 
 describe('LimitDBRedis', () => {
@@ -93,7 +124,6 @@ describe('LimitDBRedis', () => {
   });
 
   afterEach((done) => {
-
     db.close((err) => {
       // Can't close DB if it was never open
       if (err?.message.indexOf('enableOfflineQueue') > 0) {
@@ -128,7 +158,7 @@ describe('LimitDBRedis', () => {
       assert.containsAllKeys(db.buckets, ['ip', 'test']);
     });
 
-    it('should replace configuration of existing type',  () => {
+    it('should replace configuration of existing type', () => {
       db.configurateBucket('ip', { size: 1 });
       assert.equal(db.buckets.ip.size, 1);
       assert.equal(Object.keys(db.buckets.ip.overrides).length, 0);
@@ -136,70 +166,113 @@ describe('LimitDBRedis', () => {
   });
 
   describe('TAKE', () => {
-    it('should fail on validation', (done) => {
-      db.take({}, (err) => {
-        assert.match(err.message, /type is required/);
-        done();
-      });
-    });
+    const testsParams = [
+      {
+        name: 'regular take',
+        init: () => {
+        },
+        take: (params, callback) => db.take(params, callback),
+        params: {}
+      },
+      {
+        name: 'elevated take',
+        init: () => db.configurateBuckets(elevatedBuckets),
+        take: (params, callback) => db.takeElevated(params, callback),
+        params: { elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 } }
+      }
+    ];
 
-    it('should keep track of a key', (done) => {
-      const params = { type: 'ip',  key: '21.17.65.41'};
-      db.take(params, (err) => {
-        if (err) {
-          return done(err);
-        }
-        db.take(params, (err, result) => {
-          if (err) {
-            return done(err);
-          }
-          assert.equal(result.conformant, true);
-          assert.equal(result.remaining, 8);
-          done();
+    testsParams.forEach(testParams => {
+      describe(`${testParams.name}`, () => {
+        it(`should fail on validation`, (done) => {
+          testParams.init();
+          testParams.take({ ...testParams.params }, (err) => {
+            assert.match(err.message, /type is required/);
+            done();
+          });
         });
-      });
-    });
 
-    it('should add a ttl to buckets', (done) => {
-      const params = { type: 'ip', key: '211.45.66.1'};
-      db.take(params, (err) => {
-        if (err) {
-          return done(err);
-        }
-        db.redis.ttl(`${params.type}:${params.key}`, (err, ttl) => {
-          if (err) {
-            return done(err);
-          }
-          assert.equal(db.buckets['ip'].ttl, ttl);
-          done();
-        });
-      });
-    });
-
-    it('should return TRUE with right remaining and reset after filling up the bucket', (done) => {
-      const now = Date.now();
-      db.take({
-        type: 'ip',
-        key:  '5.5.5.5'
-      }, (err) => {
-        if (err) {
-          return done(err);
-        }
-        db.put({
-          type: 'ip',
-          key:  '5.5.5.5',
-        }, (err) => {
-          if (err) {
-            return done(err);
-          }
-          db.take({
-            type: 'ip',
-            key:  '5.5.5.5'
-          }, (err, result) => {
+        it(`should keep track of a key`, (done) => {
+          testParams.init();
+          const params = { ...testParams.params, type: 'ip', key: '21.17.65.41' };
+          testParams.take(params, (err) => {
             if (err) {
               return done(err);
             }
+            testParams.take(params, (err, result) => {
+              if (err) {
+                return done(err);
+              }
+              assert.equal(result.conformant, true);
+              assert.equal(result.remaining, 8);
+              done();
+            });
+          });
+        });
 
+        it(`should add a ttl to buckets`, (done) => {
+          testParams.init();
+          const params = { ...testParams.params, type: 'ip', key: '211.45.66.1' };
+          testParams.take(params, (err) => {
+            if (err) {
+              return done(err);
+            }
+            db.redis.ttl(`${params.type}:${params.key}`, (err, ttl) => {
+              if (err) {
+                return done(err);
+              }
+              assert.equal(db.buckets['ip'].ttl, ttl);
+              done();
+            });
+          });
+        });
+
+        it(`should return TRUE with right remaining and reset after filling up the bucket`, (done) => {
+          testParams.init();
+          const now = Date.now();
+          testParams.take({
+            ...testParams.params,
+            type: 'ip',
+            key: '5.5.5.5'
+          }, (err) => {
+            if (err) {
+              return done(err);
+            }
+            db.put({
+              type: 'ip',
+              key: '5.5.5.5',
+            }, (err) => {
+              if (err) {
+                return done(err);
+              }
+              testParams.take({
+                ...testParams.params,
+                type: 'ip',
+                key: '5.5.5.5'
+              }, (err, result) => {
+                if (err) {
+                  return done(err);
+                }
+
+                assert.ok(result.conformant);
+                assert.equal(result.remaining, 9);
+                assert.closeTo(result.reset, now / 1000, 3);
+                assert.equal(result.limit, 10);
+                done();
+              });
+            });
+          });
+        });
+
+        it(`should return TRUE when traffic is conformant`, (done) => {
+          testParams.init();
+          const now = Date.now();
+          testParams.take({
+            ...testParams.params,
+            type: 'ip',
+            key: '1.1.1.1'
+          }, (err, result) => {
+            if (err) return done(err);
             assert.ok(result.conformant);
             assert.equal(result.remaining, 9);
             assert.closeTo(result.reset, now / 1000, 3);
@@ -207,245 +280,404 @@ describe('LimitDBRedis', () => {
             done();
           });
         });
-      });
-    });
 
-    it('should return TRUE when traffic is conformant', (done) => {
-      const now = Date.now();
-      db.take({
-        type: 'ip',
-        key:  '1.1.1.1'
-      }, (err, result) => {
-        if (err) return done(err);
-        assert.ok(result.conformant);
-        assert.equal(result.remaining, 9);
-        assert.closeTo(result.reset, now / 1000, 3);
-        assert.equal(result.limit, 10);
-        done();
-      });
-    });
-
-    it('should return FALSE when requesting more than the size of the bucket', (done) => {
-      const now = Date.now();
-      db.take({
-        type:  'ip',
-        key:   '2.2.2.2',
-        count: 12
-      }, (err, result) => {
-        if (err) return done(err);
-        assert.notOk(result.conformant);
-        assert.equal(result.remaining, 10);
-        assert.closeTo(result.reset, now / 1000, 3);
-        assert.equal(result.limit, 10);
-        done();
-      });
-    });
-
-    it('should return FALSE when traffic is not conformant', (done) => {
-      const takeParams = {
-        type:  'ip',
-        key:   '3.3.3.3'
-      };
-      async.map(_.range(10), (i, done) => {
-        db.take(takeParams, done);
-      }, (err, responses) => {
-        if (err) return done(err);
-        assert.ok(responses.every((r) => { return r.conformant; }));
-        db.take(takeParams, (err, response) => {
-          assert.notOk(response.conformant);
-          assert.equal(response.remaining, 0);
-          done();
+        it(`should return FALSE when requesting more than the size of the bucket`, (done) => {
+          testParams.init();
+          const now = Date.now();
+          testParams.take({
+            ...testParams.params,
+            type: 'ip',
+            key: '2.2.2.2',
+            count: 12
+          }, (err, result) => {
+            if (err) return done(err);
+            assert.notOk(result.conformant);
+            assert.equal(result.remaining, 10);
+            assert.closeTo(result.reset, now / 1000, 3);
+            assert.equal(result.limit, 10);
+            done();
+          });
         });
-      });
-    });
 
-    it('should return TRUE if an override by name allows more', (done) => {
-      const takeParams = {
-        type:  'ip',
-        key:   '127.0.0.1'
-      };
-      async.each(_.range(10), (i, done) => {
-        db.take(takeParams, done);
-      }, (err) => {
-        if (err) return done(err);
-        db.take(takeParams, (err, result) => {
-          if (err) return done(err);
-          assert.ok(result.conformant);
-          assert.ok(result.remaining, 89);
-          done();
+        it(`should return FALSE when traffic is not conformant`, (done) => {
+          testParams.init();
+          const takeParams = {
+            ...testParams.params,
+            type: 'ip',
+            key: '3.3.3.3'
+          };
+          async.map(_.range(10), (i, done) => {
+            testParams.take(takeParams, done);
+          }, (err, responses) => {
+            if (err) return done(err);
+            assert.ok(responses.every((r) => {
+              return r.conformant;
+            }));
+            testParams.take(takeParams, (err, response) => {
+              assert.notOk(response.conformant);
+              assert.equal(response.remaining, 0);
+              done();
+            });
+          });
         });
-      });
-    });
 
-    it('should return TRUE if an override allows more', (done) => {
-      const takeParams = {
-        type:  'ip',
-        key:   '192.168.0.1'
-      };
-      async.each(_.range(10), (i, done) => {
-        db.take(takeParams, done);
-      }, (err) => {
-        if (err) return done(err);
-        db.take(takeParams, (err, result) => {
-          assert.ok(result.conformant);
-          assert.ok(result.remaining, 39);
-          done();
+        it(`should return TRUE if an override by name allows more`, (done) => {
+          testParams.init();
+          const takeParams = {
+            ...testParams.params,
+            type: 'ip',
+            key: '127.0.0.1'
+          };
+          async.each(_.range(10), (i, done) => {
+            testParams.take(takeParams, done);
+          }, (err) => {
+            if (err) return done(err);
+            testParams.take(takeParams, (err, result) => {
+              if (err) return done(err);
+              assert.ok(result.conformant);
+              assert.ok(result.remaining, 89);
+              done();
+            });
+          });
         });
-      });
-    });
 
-    it('can expire an override', (done) => {
-      const takeParams = {
-        type: 'ip',
-        key:  '10.0.0.123'
-      };
-      async.each(_.range(10), (i, cb) => {
-        db.take(takeParams, cb);
-      }, (err) => {
-        if (err) {
-          return done(err);
-        }
-        db.take(takeParams, (err, response) => {
-          assert.notOk(response.conformant);
-          done();
+        it(`should return TRUE if an override allows more`, (done) => {
+          testParams.init();
+          const takeParams = {
+            ...testParams.params,
+            type: 'ip',
+            key: '192.168.0.1'
+          };
+          async.each(_.range(10), (i, done) => {
+            testParams.take(takeParams, done);
+          }, (err) => {
+            if (err) return done(err);
+            testParams.take(takeParams, (err, result) => {
+              assert.ok(result.conformant);
+              assert.ok(result.remaining, 39);
+              done();
+            });
+          });
         });
-      });
-    });
 
-    it('can parse a date and expire and override', (done) => {
-      const takeParams = {
-        type: 'ip',
-        key:  '10.0.0.124'
-      };
-      async.each(_.range(10), (i, cb) => {
-        db.take(takeParams, cb);
-      }, (err) => {
-        if (err) {
-          return done(err);
-        }
-        db.take(takeParams, (err, response) => {
-          assert.notOk(response.conformant);
-          done();
+        it(`can expire an override`, (done) => {
+          testParams.init();
+          const takeParams = {
+            ...testParams.params,
+            type: 'ip',
+            key: '10.0.0.123'
+          };
+          async.each(_.range(10), (i, cb) => {
+            testParams.take(takeParams, cb);
+          }, (err) => {
+            if (err) {
+              return done(err);
+            }
+            testParams.take(takeParams, (err, response) => {
+              assert.notOk(response.conformant);
+              done();
+            });
+          });
         });
-      });
-    });
 
-    it('should use seconds ceiling for next reset', (done) => {
-      // it takes ~1790 msec to fill the bucket with this test
-      const now = Date.now();
-      const requests = _.range(9).map(() => {
-        return cb => db.take({ type: 'ip', key: '211.123.12.36' }, cb);
-      });
-      async.series(requests, (err, results) => {
-        if (err) return done(err);
-        const lastResult = results[results.length -1];
-        assert.ok(lastResult.conformant);
-        assert.equal(lastResult.remaining, 1);
-        assert.closeTo(lastResult.reset, now / 1000, 3);
-        assert.equal(lastResult.limit, 10);
-        done();
-      });
-    });
-
-    it('should set reset to UNIX timestamp regardless of period', (done) => {
-      const now = Date.now();
-      db.take({ type: 'ip', key: '10.0.0.1' }, (err, result) => {
-        if (err) { return done(err); }
-        assert.ok(result.conformant);
-        assert.equal(result.remaining, 0);
-        assert.closeTo(result.reset, now / 1000 + 1800, 1);
-        assert.equal(result.limit, 1);
-        done();
-      });
-    });
-
-    it('should work for unlimited', (done) => {
-      const now = Date.now();
-      db.take({ type: 'ip', key: '0.0.0.0' }, (err, response) => {
-        if (err) return done(err);
-        assert.ok(response.conformant);
-        assert.equal(response.remaining, 100);
-        assert.closeTo(response.reset, now / 1000, 1);
-        assert.equal(response.limit, 100);
-        done();
-      });
-    });
-
-    it('should work with a fixed bucket', (done) => {
-      async.map(_.range(10), (i, done) => {
-        db.take({ type: 'ip', key: '8.8.8.8' }, done);
-      }, (err, results) => {
-        if (err) return done(err);
-        results.forEach((r, i) => {
-          assert.equal(r.remaining + i + 1, 10);
+        it(`can parse a date and expire and override`, (done) => {
+          testParams.init();
+          const takeParams = {
+            ...testParams.params,
+            type: 'ip',
+            key: '10.0.0.124'
+          };
+          async.each(_.range(10), (i, cb) => {
+            testParams.take(takeParams, cb);
+          }, (err) => {
+            if (err) {
+              return done(err);
+            }
+            testParams.take(takeParams, (err, response) => {
+              assert.notOk(response.conformant);
+              done();
+            });
+          });
         });
-        assert.ok(results.every(r => r.conformant));
-        db.take({ type: 'ip', key: '8.8.8.8' }, (err, response) => {
-          assert.notOk(response.conformant);
-          done();
+
+        it(`should use seconds ceiling for next reset`, (done) => {
+          testParams.init();
+          // it takes ~1790 msec to fill the bucket with this test
+          const now = Date.now();
+          const requests = _.range(9).map(() => {
+            return cb => testParams.take({ ...testParams.params, type: 'ip', key: '211.123.12.36' }, cb);
+          });
+          async.series(requests, (err, results) => {
+            if (err) return done(err);
+            const lastResult = results[results.length - 1];
+            assert.ok(lastResult.conformant);
+            assert.equal(lastResult.remaining, 1);
+            assert.closeTo(lastResult.reset, now / 1000, 3);
+            assert.equal(lastResult.limit, 10);
+            done();
+          });
         });
-      });
-    });
 
-    it('should work with RegExp', (done) => {
-      db.take({ type: 'user', key: 'regexp|test'}, (err, response) => {
-        if (err) {
-          return done(err);
-        }
-        assert.ok(response.conformant);
-        assert.equal(response.remaining, 9);
-        assert.equal(response.limit, 10);
-        done();
-      });
-    });
+        it(`should set reset to UNIX timestamp regardless of period`, (done) => {
+          testParams.init();
+          const now = Date.now();
+          testParams.take({ ...testParams.params, type: 'ip', key: '10.0.0.1' }, (err, result) => {
+            if (err) {
+              return done(err);
+            }
+            assert.ok(result.conformant);
+            assert.equal(result.remaining, 0);
+            assert.closeTo(result.reset, now / 1000 + 1800, 1);
+            assert.equal(result.limit, 1);
+            done();
+          });
+        });
 
-    it('should work with "all"', (done) => {
-      db.take({ type: 'user', key: 'regexp|test', count: 'all'}, (err, response) => {
-        if (err) {
-          return done(err);
-        }
-        assert.ok(response.conformant);
-        assert.equal(response.remaining, 0);
-        assert.equal(response.limit, 10);
-        done();
-      });
-    });
+        it(`should work for unlimited`, (done) => {
+          testParams.init();
+          const now = Date.now();
+          testParams.take({ ...testParams.params, type: 'ip', key: '0.0.0.0' }, (err, response) => {
+            if (err) return done(err);
+            assert.ok(response.conformant);
+            assert.equal(response.remaining, 100);
+            assert.closeTo(response.reset, now / 1000, 1);
+            assert.equal(response.limit, 100);
+            done();
+          });
+        });
 
-    it('should work with count=0', (done) => {
-      db.take({ type: 'ip', key: '9.8.7.6', count: 0 }, (err, response) => {
-        if (err) {
-          return done(err);
-        }
-        assert.ok(response.conformant);
-        assert.equal(response.remaining, 200);
-        assert.equal(response.limit, 200);
-        done();
-      });
-    });
+        it(`should work with a fixed bucket`, (done) => {
+          testParams.init();
+          async.map(_.range(10), (i, done) => {
+            testParams.take({ ...testParams.params, type: 'ip', key: '8.8.8.8' }, done);
+          }, (err, results) => {
+            if (err) return done(err);
+            results.forEach((r, i) => {
+              assert.equal(r.remaining + i + 1, 10);
+            });
+            assert.ok(results.every(r => r.conformant));
+            testParams.take({ ...testParams.params, type: 'ip', key: '8.8.8.8' }, (err, response) => {
+              assert.notOk(response.conformant);
+              done();
+            });
+          });
+        });
 
-    [
-      '0',
-      0.5,
-      'ALL',
-      true,
-      1n,
-      {},
-    ].forEach((count) => {
-      it(`should not work for non-integer count=${count}`, (done) => {
-        const opts = {
-          type: 'ip',
-          key: '9.8.7.6',
-          count,
-        };
+        it(`should work with RegExp`, (done) => {
+          testParams.init();
+          testParams.take({ ...testParams.params, type: 'user', key: 'regexp|test' }, (err, response) => {
+            if (err) {
+              return done(err);
+            }
+            assert.ok(response.conformant);
+            assert.equal(response.remaining, 9);
+            assert.equal(response.limit, 10);
+            done();
+          });
+        });
 
-        assert.throws(() => db.take(opts, () => {}), /if provided, count must be 'all' or an integer value/);
-        done();
+        it(`should work with "all"`, (done) => {
+          testParams.init();
+          testParams.take({ ...testParams.params, type: 'user', key: 'regexp|test', count: 'all' }, (err, response) => {
+            if (err) {
+              return done(err);
+            }
+            assert.ok(response.conformant);
+            assert.equal(response.remaining, 0);
+            assert.equal(response.limit, 10);
+            done();
+          });
+        });
+
+        it(`should work with count=0`, (done) => {
+          testParams.init();
+          testParams.take({ ...testParams.params, type: 'ip', key: '9.8.7.6', count: 0 }, (err, response) => {
+            if (err) {
+              return done(err);
+            }
+            assert.ok(response.conformant);
+            assert.equal(response.remaining, 200);
+            assert.equal(response.limit, 200);
+            done();
+          });
+        });
+
+        [
+          '0',
+          0.5,
+          'ALL',
+          true,
+          1n,
+          {},
+        ].forEach((count) => {
+          it(`should not work for non-integer count=${count}`, (done) => {
+            testParams.init();
+            const opts = {
+              ...testParams.params,
+              type: 'ip',
+              key: '9.8.7.6',
+              count,
+            };
+
+            assert.throws(() => testParams.take(opts, () => {
+            }), /if provided, count must be 'all' or an integer value/);
+            done();
+          });
+        });
+
+        it(`should call redis and not set local cache count`, (done) => {
+          testParams.init();
+          const params = { ...testParams.params, type: 'global', key: 'aTenant' };
+          testParams.take(params, (err) => {
+            if (err) {
+              return done(err);
+            }
+
+            assert.equal(db.callCounts['global:aTenant'], undefined);
+            done();
+          });
+        });
+
+        describe(`${testParams.name} skip calls`, () => {
+          it('should skip calls', (done) => {
+            testParams.init();
+            const params = { ...testParams.params, type: 'global', key: 'skipit' };
+
+            async.series([
+              (cb) => testParams.take(params, cb), // redis
+              (cb) => testParams.take(params, cb), // cache
+              (cb) => testParams.take(params, cb), // cache
+              (cb) => {
+                assert.equal(db.callCounts.get('global:skipit').count, 2);
+                cb();
+              },
+              (cb) => testParams.take(params, cb), // redis
+              (cb) => testParams.take(params, cb), // cache
+              (cb) => testParams.take(params, cb), // cache
+              (cb) => testParams.take(params, cb), // redis (first nonconformant)
+              (cb) => testParams.take(params, cb), // cache (first cached)
+              (cb) => {
+                assert.equal(db.callCounts.get('global:skipit').count, 1);
+                assert.notOk(db.callCounts.get('global:skipit').res.conformant);
+                cb();
+              },
+            ], (err, _results) => {
+              if (err) {
+                return done(err);
+              }
+
+              done();
+            });
+          });
+
+          it('should take correct number of tokens for skipped calls with single count', (done) => {
+            testParams.init();
+            const params = { ...testParams.params, type: 'global', key: 'skipOneSize3' };
+
+            // size = 3
+            // skip_n_calls = 1
+            // no refill
+            async.series([
+              (cb) => db.get(params, (_, { remaining }) => {
+                assert.equal(remaining, 3);
+                cb();
+              }),
+
+              // call 1 - redis
+              // takes 1 token
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 2);
+                assert.ok(conformant);
+                cb();
+              }),
+
+              // call 2 - skipped
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 2);
+                assert.ok(conformant);
+                cb();
+              }),
+
+              // call 3 - redis
+              // takes 2 tokens here, 1 for current call and one for previously skipped call
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 0);
+                assert.ok(conformant);
+                cb();
+              }),
+
+              // call 4 - skipped
+              // Note: this is the margin of error introduced by skip_n_calls. Without skip_n_calls, this call would be
+              // non-conformant.
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 0);
+                assert.ok(conformant);
+                cb();
+              }),
+
+              // call 5 - redis
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 0);
+                assert.notOk(conformant);
+                cb();
+              }),
+            ], (err, _results) => {
+              if (err) {
+                return done(err);
+              }
+              done();
+            });
+          });
+
+          it('should take correct number of tokens for skipped calls with multi count', (done) => {
+            testParams.init();
+            const params = { ...testParams.params, type: 'global', key: 'skipOneSize10', count: 2 };
+
+            // size = 10
+            // skip_n_calls = 1
+            // no refill
+            async.series([
+              (cb) => db.get(params, (_, { remaining }) => {
+                assert.equal(remaining, 10);
+                cb();
+              }),
+
+              // call 1 - redis
+              // takes 2 tokens
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 8);
+                assert.ok(conformant);
+                cb();
+              }),
+
+              // call 2 - skipped
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 8);
+                assert.ok(conformant);
+                cb();
+              }),
+
+              // call 3 - redis
+              // takes 4 tokens here, 2 for current call and 2 for previously skipped call
+              (cb) => testParams.take(params, (_, { remaining, conformant }) => {
+                assert.equal(remaining, 4);
+                assert.ok(conformant);
+                cb();
+              }),
+            ], (err, _results) => {
+              if (err) {
+                return done(err);
+              }
+              done();
+            });
+          });
+        });
       });
     });
 
     it('should use size config override when provided', (done) => {
-      const configOverride = { size : 7 };
-      db.take({ type: 'ip', key: '7.7.7.7', configOverride}, (err, response) => {
+      const configOverride = { size: 7 };
+      db.take({ type: 'ip', key: '7.7.7.7', configOverride }, (err, response) => {
         if (err) {
           return done(err);
         }
@@ -459,7 +691,7 @@ describe('LimitDBRedis', () => {
     it('should use per interval config override when provided', (done) => {
       const oneDayInMs = ms('24h');
       const configOverride = { per_day: 1 };
-      db.take({ type: 'ip', key: '7.7.7.8', configOverride}, (err, response) => {
+      db.take({ type: 'ip', key: '7.7.7.8', configOverride }, (err, response) => {
         if (err) {
           return done(err);
         }
@@ -472,7 +704,7 @@ describe('LimitDBRedis', () => {
     it('should use size AND interval config override when provided', (done) => {
       const oneDayInMs = ms('24h');
       const configOverride = { size: 3, per_day: 1 };
-      db.take({ type: 'ip', key: '7.7.7.8', configOverride}, (err, response) => {
+      db.take({ type: 'ip', key: '7.7.7.8', configOverride }, (err, response) => {
         if (err) {
           return done(err);
         }
@@ -488,7 +720,7 @@ describe('LimitDBRedis', () => {
 
     it('should set ttl to reflect config override', (done) => {
       const configOverride = { per_day: 5 };
-      const params = { type: 'ip', key: '7.7.7.9', configOverride};
+      const params = { type: 'ip', key: '7.7.7.9', configOverride };
       db.take(params, (err) => {
         if (err) {
           return done(err);
@@ -504,7 +736,7 @@ describe('LimitDBRedis', () => {
     });
 
     it('should work with no overrides', (done) => {
-      const takeParams = { type: 'tenant', key: 'foo'};
+      const takeParams = { type: 'tenant', key: 'foo' };
       db.take(takeParams, (err, response) => {
         assert.ok(response.conformant);
         assert.equal(response.remaining, 0);
@@ -522,12 +754,14 @@ describe('LimitDBRedis', () => {
       }
       db.configurateBuckets(big);
 
-      const takeParams = { type: 'ip', key: '172.16.1.1'};
+      const takeParams = { type: 'ip', key: '172.16.1.1' };
       async.map(_.range(10), (i, done) => {
         db.take(takeParams, done);
       }, (err, responses) => {
         if (err) return done(err);
-        assert.ok(responses.every((r) => { return r.conformant; }));
+        assert.ok(responses.every((r) => {
+          return r.conformant;
+        }));
         db.take(takeParams, (err, response) => {
           assert.notOk(response.conformant);
           assert.equal(response.remaining, 0);
@@ -536,143 +770,737 @@ describe('LimitDBRedis', () => {
       });
     });
 
-    it('should call redis and not set local cache count', (done) => {
-      const params = { type: 'global',  key: 'aTenant'};
-      db.take(params, (err) => {
-        if (err) {
-          return done(err);
-        }
+    describe('elevated limits specific tests', () => {
+      const takeElevatedPromise = (params) => new Promise((resolve, reject) => {
+        db.takeElevated(params, (err, response) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(response);
+        });
+      });
+      const takePromise = (params) => new Promise((resolve, reject) => {
+        db.take(params, (err, response) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(response);
+        });
+      });
+      const redisExistsPromise = (key) => new Promise((resolve, reject) => {
+        db.redis.exists(key, (err, exists) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(exists);
+        });
+      });
+      const redisGetPromise = (key) => new Promise((resolve, reject) => {
+        db.redis.get(key, (err, value) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(value);
+        });
+      });
+      const redisSetPromise = (key, value) => new Promise((resolve, reject) => {
+        db.redis.set(key, value, (err, value) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(value);
+        });
+      });
+      const redisSetWithExpirePromise = (key, value, expireSecs) => new Promise((resolve, reject) => {
+        db.redis.set(key, value, 'EX', expireSecs, (err, value) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(value);
+        });
+      });
+      const redisTTLPromise = (key) => new Promise((resolve, reject) => {
+        db.redis.ttl(key, (err, value) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(value);
+        });
+      });
 
-        assert.equal(db.callCounts['global:aTenant'], undefined);
-        done();
+      const redisDeletePromise = (key) => new Promise((resolve, reject) => {
+        db.redis.del(key, (err, value) => {
+          if (err) {
+            return reject(err);
+          }
+          resolve(value);
+        });
+      });
+
+      it('should set a key at erl_is_active_key when erl is activated for a bucket with elevated_limits configuration', async () => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        const erl_is_active_key = 'some_erl_active_identifier';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        });
+        const params = {
+          type: bucketName,
+          key: 'some_key',
+          elevated_limits : { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+
+        // erl not activated yet
+        await takeElevatedPromise(params);
+        await redisExistsPromise(erl_is_active_key).then((isActive) => assert.equal(isActive, 0));
+
+        // erl now activated
+        await takeElevatedPromise(params);
+        await redisExistsPromise(erl_is_active_key).then((isActive) => assert.equal(isActive, 1));
+      });
+      it('should raise an error if elevated_limits object is not provided when calling takeElevated()', (done) => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        const params = { type: bucketName, key: 'some_bucket_key' };
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        });
+
+        db.takeElevated(params, (err) => {
+          assert.match(err.message, /elevated_limits object is required for elevated limits/);
+          done();
+        });
+      });
+      it('should raise an error if elevated_limits.erl_is_active_key is not provided when calling takeElevated()', (done) => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        });
+        const params = {
+          type: bucketName,
+          key: 'some_bucket_key',
+          elevated_limits: { erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+
+        db.takeElevated(params, (err) => {
+          assert.match(err.message, /erl_is_active_key is required for elevated limits/);
+          done();
+        });
+      });
+      it('should raise an error if elevated_limits.erl_quota_key is not provided when calling takeElevated()', (done) => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        });
+        const params = {
+          type: bucketName,
+          key: 'some_bucket_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', per_calendar_month: 10 },
+        };
+
+        db.takeElevated(params, (err) => {
+          assert.match(err.message, /erl_quota_key is required for elevated limits/);
+          done();
+        });
+      });
+      it('should raise an error if elevated_limits.per_calendar_month is not provided when calling takeElevated()', (done) => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        });
+        const params = {
+          type: bucketName,
+          key: 'some_bucket_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey' },
+        };
+
+        db.takeElevated(params, (err) => {
+          assert.match(err.message, /per_interval is required for elevated limits/);
+          done();
+        });
+      });
+      it('should apply erl limits if normal rate limits are exceeded', async () => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 2,
+          },
+        });
+        const params = {
+          type: bucketName,
+          key: 'some_bucket_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+
+        // first call, still within normal rate limits
+        await takeElevatedPromise(params).then((result) => {
+          assert.isFalse(result.elevated_limits.activated);
+        });
+        // second call, normal rate limits exceeded and erl is activated
+        await takeElevatedPromise(params).then((result) => {
+          assert.isTrue(result.elevated_limits.activated);
+          assert.isTrue(result.conformant);
+          assert.equal(result.remaining, 8);
+        });
+
+      });
+      it('should rate limit if both normal and erl rate limit are exceeded', async () => {
+        const bucketName = 'bucket_with_elevated_limits_config';
+        const params = {
+          type: bucketName,
+          key: 'some_bucket_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 2,
+            per_minute: 2,
+          },
+        });
+
+        // first call, still within normal rate limits
+        await takeElevatedPromise(params).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isFalse(result.elevated_limits.activated);
+          assert.equal(result.remaining, 0);
+        });
+        // second call, normal rate limits exceeded and erl is activated.
+        // tokens in bucket is going to be 0 after this call (size 2 - 2 calls)
+        await takeElevatedPromise(params).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isTrue(result.elevated_limits.activated);
+          assert.equal(result.remaining, 0);
+        });
+        // third call, erl rate limit exceeded
+        await takeElevatedPromise(params).then((result) => {
+          assert.isFalse(result.conformant); // being rate limited
+          assert.isTrue(result.elevated_limits.activated);
+          assert.equal(result.remaining, 0);
+        });
+      });
+      it('should deduct already used tokens from new bucket when erl is activated', async () => {
+        const bucketName = 'test-bucket';
+        const params = {
+          type: bucketName,
+          key: 'some_key ',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        await db.configurateBucket(bucketName, {
+          size: 2,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 1,
+          }
+        });
+
+        await takeElevatedPromise(params);
+        await takeElevatedPromise(params);
+        await takeElevatedPromise(params).then((result) => {
+          assert.isTrue(result.conformant);
+          assert.isTrue(result.elevated_limits.activated);
+          assert.equal(result.remaining, 7); // Total used tokens so far: 3
+        });
+      });
+      it('should use default ttl if erl activation period is not configured', (done) => {
+        const bucketName = 'test-bucket';
+        const params = {
+          type: bucketName,
+          key: 'some_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 1,
+          }
+        });
+        takeElevatedPromise(params)
+          .then(() => takeElevatedPromise(params))
+          .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
+            assert.equal(ttl, ERL_DEFAULT_ACTIVATION_PERIOD_SECONDS); // 15 minutes in seconds
+            done();
+          }));
+      });
+      it('should use ttl calculated using erl activation period if erl activation period is configured', (done) => {
+        const bucketName = 'test-bucket';
+        const params = {
+          type: bucketName,
+          key: 'some_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 10,
+            per_minute: 1,
+            erl_activation_period_seconds: 1200,
+          }
+        });
+        takeElevatedPromise(params)
+          .then(() => takeElevatedPromise(params))
+          .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
+            assert.equal(ttl, 1200); // 20 minutes in seconds
+            done();
+          }));
+      });
+      it('should refill with erl refill rate when erl is active', (done) => {
+        const bucketName = 'test-bucket';
+        const params = {
+          type: bucketName,
+          key: 'some_key ',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 5,
+            per_interval: 1,
+            interval: 10,
+          }
+        });
+        takeElevatedPromise(params)
+          .then(() => takeElevatedPromise(params)) // erl activated
+          .then(() => new Promise((resolve) => setTimeout(resolve, 10))) // wait for 10ms
+          .then(() => takeElevatedPromise(params)) // refill with erl refill rate
+          .then((result) => {
+            assert.isTrue(result.conformant);
+            assert.isTrue(result.elevated_limits.activated);
+            assert.equal(result.remaining, 3);
+            done();
+          });
+      });
+      it('should go back to standard bucket size and refill rate when we stop using takeElevated', (done) => {
+        const bucketName = 'test-bucket';
+        const params = {
+          type: bucketName,
+          key: 'some_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_interval: 1,
+          interval: 20, // 1 token every 20 ms (50 RPS)
+          elevated_limits: {
+            size: 5,
+            per_interval: 1,
+            interval: 10, // 1 token every 10 ms (100 RPS)
+          }
+        });
+
+        // first call to take a token
+        takeElevatedPromise(params)
+          // second call. erl activated and token taken. tokens in bucket: 3
+          .then(() => takeElevatedPromise(params))
+          .then((result) => assert.equal(result.remaining, 3))
+          // wait for 10ms, refill 1 token while erl active. tokens in bucket: 4
+          .then(() => new Promise((resolve) => setTimeout(resolve, 10)))
+          // take 1 token. tokens in bucket: 3
+          .then(() => takeElevatedPromise(params))
+          .then((result) => {
+            assert.isTrue(result.conformant);
+            assert.isTrue(result.elevated_limits.activated);
+            assert.equal(result.remaining, 3);
+          })
+          // disable ERL, go back to standard bucket size and refill rate
+          // tokens in bucket: 1 (= bucket size)
+          // take 1 token. tokens in bucket: 0
+          .then(() => takePromise(params))
+          .then((result) => {
+            assert.isTrue(result.conformant);
+            assert.notExists(result.elevated_limits);
+            assert.equal(result.remaining, 0);
+          })
+          // wait for 2ms, refill 1 token while erl inactive. tokens in bucket: 1
+          .then(() => new Promise((resolve) => setTimeout(resolve, 20)))
+          // take 1 token. tokens in bucket: 0
+          .then(() => takePromise(params))
+          .then((result) => {
+            assert.isTrue(result.conformant);
+            assert.notExists(result.elevated_limits);
+            assert.equal(result.remaining, 0);
+            done();
+          });
+      });
+
+      it('should work if attempted to takeElevated with no elevated config', (done) => {
+        const bucketName = 'bucket_with_no_elevated_limits_config';
+        const erl_is_active_key = 'some_erl_active_identifier';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1
+        });
+        const params = {
+          type: bucketName,
+          key: 'some_key',
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+        };
+        takeElevatedPromise(params)
+          .then((result) => {
+            assert.isTrue(result.conformant);
+            assert.equal(result.remaining, 0);
+            assert.equal(result.limit, 1);
+            assert.isNotNull(result.elevated_limits);
+            assert.isFalse(result.elevated_limits.triggered);
+            assert.isFalse(result.elevated_limits.activated);
+            assert.equal(result.elevated_limits.quota_count, -1);
+          })
+          .then(() => takeElevatedPromise(params))
+          .then((result) => {
+            assert.isFalse(result.conformant);
+            assert.equal(result.remaining, 0);
+            assert.equal(result.limit, 1);
+            assert.isNotNull(result.elevated_limits);
+            assert.isFalse(result.elevated_limits.triggered);
+            assert.isFalse(result.elevated_limits.activated);
+            assert.equal(result.elevated_limits.quota_count, -1);
+          })
+          .then(done)
+      });
+
+      describe('overrides', () => {
+        it('should use elevated_limits config override when provided', (done) => {
+          const bucketName = 'bucket_with_no_elevated_limits_config';
+          const erl_is_active_key = 'some_erl_active_identifier';
+          db.configurateBucket(bucketName, {
+            size: 1,
+            per_minute: 1
+          });
+          const configOverride = { size: 1, elevated_limits: { size: 3, per_second: 3 } };
+          const params = {
+            type: bucketName,
+            key: 'some_key',
+            elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+            configOverride
+          };
+          takeElevatedPromise(params)
+            .then((result) => {
+              assert.isTrue(result.conformant);
+              assert.isFalse(result.elevated_limits.activated);
+            })
+            .then(() => takeElevatedPromise(params))
+            .then(() => takeElevatedPromise(params))
+            .then((result) => {
+              assert.isTrue(result.conformant);
+              assert.isTrue(result.elevated_limits.activated);
+              assert.equal(result.remaining, 0);
+            })
+            .then(() => takeElevatedPromise(params))
+            .then((result) => {
+              assert.isFalse(result.conformant);
+              db.redis.ttl(erl_is_active_key, (err, ttl) => {
+                assert.equal(ttl, ERL_DEFAULT_ACTIVATION_PERIOD_SECONDS); // uses default activation period
+                done();
+              });
+            });
+        });
+        it('should use erl_activation_period from elevated_limits config override when provided', (done) => {
+          const bucketName = 'bucket_with_no_elevated_limits_config';
+          const erl_is_active_key = 'some_erl_active_identifier';
+          db.configurateBucket(bucketName, {
+            size: 1,
+            per_minute: 1,
+            erl_activation_period_seconds: 900
+          });
+          const configOverride = {
+            size: 1,
+            elevated_limits: { size: 3, per_second: 3, erl_activation_period_seconds: 60 }
+          };
+          const params = {
+            type: bucketName,
+            key: 'some_key',
+            elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 },
+            configOverride
+          };
+          takeElevatedPromise(params)
+            .then((result) => {
+              assert.isTrue(result.conformant);
+              assert.isFalse(result.elevated_limits.activated);
+            })
+            .then(() => takeElevatedPromise(params))
+            .then((result) => {
+              assert.isTrue(result.conformant);
+              assert.isTrue(result.elevated_limits.activated);
+              db.redis.ttl(erl_is_active_key, (err, ttl) => {
+                assert.equal(ttl, 60); // uses specified activation period
+                done();
+              });
+            });
+        });
+      });
+
+      // erlquota tests
+      describe('erlQuota tests', () => {
+        const bucketName = 'bucket_for_erl_testing';
+        const erl_is_active_key = 'some_erl_active_identifier';
+        const params = {
+          type: bucketName,
+          key: 'some_key',
+        };
+        beforeEach(() => {
+          db.configurateBucket(bucketName, {
+            size: 1,
+            per_minute: 1,
+            elevated_limits: {
+              size: 2,
+              per_second: 2
+            }
+          });
+        });
+
+        it('should return erl_quota_count >= 0 when ERL is triggered', (done) => {
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 };
+
+          // check erl not activated yet
+          redisExistsPromise(erl_is_active_key)
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // check erl_quota_key does not exist
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // next takeElevated should activate ERL
+            .then(() => takeElevatedPromise(params))
+            .then((response) => assert.isTrue(response.elevated_limits.triggered) && assert.isTrue(response.elevated_limits.activated) && assert.isAtLeast(response.elevated_limits.quota_count, 0))
+            .then(() => done());
+        });
+
+        it('should return erl_quota_count = -1 when ERL had already been activated', (done) => {
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 };
+
+          // setup ERL
+          redisSetPromise(erl_is_active_key, 1)
+            .then(() => redisSetPromise(params.elevated_limits.erl_quota_key, params.elevated_limits.per_calendar_month - 1))
+            // takeElevated with ERL activated
+            .then(() => takeElevatedPromise(params))
+            .then((response) => assert.isFalse(response.elevated_limits.triggered) && assert.isTrue(response.elevated_limits.activated) && assert.equal(response.elevated_limits.quota_count, -1))
+            .then(() => done());
+        });
+
+        it('should set ttl accordingly on erl_quota_key when we activate ERL', (done) => {
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 };
+
+          const eom = endOfMonthTimestamp();
+          // get ms between now and eom
+          const expectedTTL = Math.floor((eom - Date.now()) / 1000);
+
+          // check erl not activated yet
+          redisExistsPromise(erl_is_active_key)
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // check erl_quota_key does not exist
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // next takeElevated should activate ERL
+            .then(() => takeElevatedPromise(params))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
+            // check erlQuota should be decreased by 1
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, params.elevated_limits.per_calendar_month - 1))
+            // check ttl on erl_quota_key
+            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then((ttl) => assert.closeTo(ttl, expectedTTL, 2))
+            .then(() => done());
+        });
+
+        it('should keep ttl on erl_quota_key after decreasing it', (done) => {
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 };
+          let expectedTTL = 0;
+
+          // check erl not activated yet
+          redisExistsPromise(erl_is_active_key)
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // check erl_quota_key does not exist
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key)
+              .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0)))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // next takeElevated should activate ERL
+            .then(() => takeElevatedPromise(params))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
+            // check erlQuota should be decreased by 1
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, params.elevated_limits.per_calendar_month - 1))
+            // check ttl on erl_quota_key
+            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then((ttl) => expectedTTL = ttl)
+            // stop ERL
+            .then(() => redisDeletePromise(erl_is_active_key))
+            // next takeElevated should re-activate ERL
+            .then(() => takeElevatedPromise(params))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
+            // check erlQuota should be decreased by 1
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, params.elevated_limits.per_calendar_month - 2))
+            // check erlQuota keeps the TTL
+            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then((ttl) => assert.equal(ttl, expectedTTL))
+            .then(() => done());
+        });
+
+        it('should decrease erlQuota when we activate ERL', (done) => {
+          // activating ERL with per_calendar_month=1 is testing a border case to make sure decreasing the quota
+          // is not interpreted in the script as no quota left for activating ERL
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 1 };
+
+          // check erl not activated yet
+          redisExistsPromise(erl_is_active_key)
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // check erl_quota_key does not exist
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // next takeElevated should activate ERL and return conformant
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated) && assert.equal(result.elevated_limits.quota_count, 0))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
+            // check erlQuota should be decreased by 1
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, params.elevated_limits.per_calendar_month - 1))
+            .then(() => done());
+        });
+
+        it('should not activate ERL when erlQuota is 0', (done) => {
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 0 };
+
+          // check erl not activated yet
+          redisExistsPromise(erl_is_active_key)
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // check erl_quota_key does not exist
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key)
+              .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0)))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // next takeElevated should have attempted to activate ERL but failed
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // check erlQuota was not set
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.isNull(erl_quota_keyValue, 0))
+            .then(() => done());
+        });
+
+        it('should not activate ERL if erl_quota_key exists and is 0', (done) => {
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 };
+
+          // set erl_quota_key to 0 in redis
+          redisSetPromise(params.elevated_limits.erl_quota_key, 0)
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 0))
+            // check erl not activated yet
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // next takeElevated should have attempted to activate ERL but failed as quota is 0
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // check erlQuota is still 0
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 0))
+            .then(() => done());
+        });
+
+        it('should activate ERL after erl_quota_key=0 expires', (done) => {
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', per_calendar_month: 10 };
+
+          // set erl_quota_key to 0 in redis
+          redisSetWithExpirePromise(params.elevated_limits.erl_quota_key, 0, 1)
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 0))
+            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then((quotaTTL) => assert.equal(quotaTTL, 1))
+            // check erl not activated yet
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isFalse(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // next takeElevated should have attempted to activate ERL but failed as quota is 0
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isFalse(result.conformant) && assert.isFalse(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // check erlQuota is still 0
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 0))
+            // wait for a second for erl_quota_key to expire
+            .then(() => new Promise((resolve) => setTimeout(resolve, 1000)))
+            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then((quotaTTL) => assert.isBelow(quotaTTL, 0))
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.isNull(erl_quota_keyValue))
+            // next takeElevated should activate ERL and return conformant
+            .then(() => takeElevatedPromise(params))
+            .then((result) => assert.isTrue(result.conformant) && assert.isTrue(result.elevated_limits.activated))
+            .then(() => redisExistsPromise(erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
+            // check erlQuota was decreased
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 9))
+            .then(() => done());
+        });
       });
     });
-
-    describe('skip calls', () => {
-      it('should skip calls', (done) => {
-        const params = { type: 'global',  key: 'skipit'};
-
-        async.series([
-          (cb) => db.take(params, cb), // redis
-          (cb) => db.take(params, cb), // cache
-          (cb) => db.take(params, cb), // cache
-          (cb) => {
-            assert.equal(db.callCounts.get('global:skipit').count, 2);
-            cb();
-          },
-          (cb) => db.take(params, cb), // redis
-          (cb) => db.take(params, cb), // cache
-          (cb) => db.take(params, cb), // cache
-          (cb) => db.take(params, cb), // redis (first nonconformant)
-          (cb) => db.take(params, cb), // cache (first cached)
-          (cb) => {
-            assert.equal(db.callCounts.get('global:skipit').count, 1);
-            assert.notOk(db.callCounts.get('global:skipit').res.conformant);
-            cb();
-          },
-        ], (err, _results) => {
-          if (err) {
-            return done(err);
-          }
-
-          done();
-        })
-      });
-
-      it('should take correct number of tokens for skipped calls with single count', (done) => {
-        const params = { type: 'global',  key: 'skipOneSize3'};
-
-        // size = 3
-        // skip_n_calls = 1
-        // no refill
-        async.series([
-          (cb) => db.get(params, (_, {remaining}) => { assert.equal(remaining, 3); cb(); }),
-
-          // call 1 - redis
-          // takes 1 token
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 2);
-            assert.ok(conformant)
-            cb();
-          }),
-
-          // call 2 - skipped
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 2);
-            assert.ok(conformant)
-            cb();
-          }),
-
-          // call 3 - redis
-          // takes 2 tokens here, 1 for current call and one for previously skipped call
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 0);
-            assert.ok(conformant)
-            cb();
-          }),
-
-          // call 4 - skipped
-          // Note: this is the margin of error introduced by skip_n_calls. Without skip_n_calls, this call would be
-          // non-conformant.
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 0);
-            assert.ok(conformant);
-            cb();
-          }),
-
-          // call 5 - redis
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 0);
-            assert.notOk(conformant);
-            cb();
-          }),
-        ], (err, _results) => {
-          if (err) {
-            return done(err);
-          }
-          done();
-        })
-      });
-
-      it('should take correct number of tokens for skipped calls with multi count', (done) => {
-        const params = { type: 'global',  key: 'skipOneSize10', count: 2};
-
-        // size = 10
-        // skip_n_calls = 1
-        // no refill
-        async.series([
-          (cb) => db.get(params, (_, {remaining}) => { assert.equal(remaining, 10); cb(); }),
-
-          // call 1 - redis
-          // takes 2 tokens
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 8);
-            assert.ok(conformant)
-            cb();
-          }),
-
-          // call 2 - skipped
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 8);
-            assert.ok(conformant)
-            cb();
-          }),
-
-          // call 3 - redis
-          // takes 4 tokens here, 2 for current call and 2 for previously skipped call
-          (cb) => db.take(params, (_, { remaining, conformant }) => {
-            assert.equal(remaining, 4);
-            assert.ok(conformant)
-            cb();
-          }),
-        ], (err, _results) => {
-          if (err) {
-            return done(err);
-          }
-          done();
-        })
-      });
-    })
   });
 
   describe('PUT', () => {
@@ -734,7 +1562,7 @@ describe('LimitDBRedis', () => {
     });
 
     it('should not override on unlimited buckets', (done) => {
-      const bucketKey = { type: 'ip',  key: '0.0.0.0', count: 1000 };
+      const bucketKey = { type: 'ip', key: '0.0.0.0', count: 1000 };
       db.put(bucketKey, (err, result) => {
         if (err) {
           return done(err);
@@ -745,7 +1573,7 @@ describe('LimitDBRedis', () => {
     });
 
     it('should restore the bucket when reseting', (done) => {
-      const bucketKey = { type: 'ip',  key: '211.123.12.12' };
+      const bucketKey = { type: 'ip', key: '211.123.12.12' };
       db.take(Object.assign({ count: 'all' }, bucketKey), (err) => {
         if (err) return done(err);
         db.put(bucketKey, (err) => {
@@ -760,7 +1588,7 @@ describe('LimitDBRedis', () => {
     });
 
     it('should restore the bucket when reseting with all', (done) => {
-      const takeParams = { type: 'ip',  key: '21.17.65.41', count: 9 };
+      const takeParams = { type: 'ip', key: '21.17.65.41', count: 9 };
       db.take(takeParams, (err) => {
         if (err) return done(err);
         db.put({ type: 'ip', key: '21.17.65.41', count: 'all' }, (err) => {
@@ -776,11 +1604,11 @@ describe('LimitDBRedis', () => {
     });
 
     it('should restore nothing when count=0', (done) => {
-      db.take({ type: 'ip',  key: '9.8.7.6', count: 123 }, (err) => {
+      db.take({ type: 'ip', key: '9.8.7.6', count: 123 }, (err) => {
         if (err) return done(err);
         db.put({ type: 'ip', key: '9.8.7.6', count: 0 }, (err) => {
           if (err) return done(err);
-          db.take({ type: 'ip',  key: '9.8.7.6', count: 0 }, (err, response) => {
+          db.take({ type: 'ip', key: '9.8.7.6', count: 0 }, (err, response) => {
             if (err) return done(err);
             assert.equal(response.conformant, true);
             assert.equal(response.remaining, 77);
@@ -805,13 +1633,14 @@ describe('LimitDBRedis', () => {
           count,
         };
 
-        assert.throws(() => db.put(opts, () => {}), /if provided, count must be 'all' or an integer value/);
+        assert.throws(() => db.put(opts, () => {
+        }), /if provided, count must be 'all' or an integer value/);
         done();
       });
     });
 
     it('should be able to reset without callback', (done) => {
-      const bucketKey = { type: 'ip',  key: '211.123.12.12'};
+      const bucketKey = { type: 'ip', key: '211.123.12.12' };
       db.take(bucketKey, (err) => {
         if (err) return done(err);
         db.put(bucketKey);
@@ -856,7 +1685,7 @@ describe('LimitDBRedis', () => {
 
     it('should use size config override when provided', (done) => {
       const configOverride = { size: 4 };
-      const bucketKey = { type: 'ip',  key: '7.7.7.9', configOverride };
+      const bucketKey = { type: 'ip', key: '7.7.7.9', configOverride };
       db.take(Object.assign({ count: 'all' }, bucketKey), (err) => {
         if (err) return done(err);
         db.put(bucketKey, (err) => { // restores all 4
@@ -873,7 +1702,7 @@ describe('LimitDBRedis', () => {
     it('should use per interval config override when provided', (done) => {
       const oneDayInMs = ms('24h');
       const configOverride = { per_day: 1 };
-      const bucketKey = { type: 'ip',  key: '7.7.7.10', configOverride };
+      const bucketKey = { type: 'ip', key: '7.7.7.10', configOverride };
       db.take(Object.assign({ count: 'all' }, bucketKey), (err) => {
         if (err) return done(err);
         db.put(bucketKey, (err) => { // restores all 4
@@ -891,7 +1720,7 @@ describe('LimitDBRedis', () => {
     it('should use size AND per interval config override when provided', (done) => {
       const oneDayInMs = ms('24h');
       const configOverride = { size: 4, per_day: 1 };
-      const bucketKey = { type: 'ip',  key: '7.7.7.11', configOverride };
+      const bucketKey = { type: 'ip', key: '7.7.7.11', configOverride };
       db.take(Object.assign({ count: 'all' }, bucketKey), (err) => {
         if (err) return done(err);
         db.put(bucketKey, (err) => { // restores all 4
@@ -909,7 +1738,7 @@ describe('LimitDBRedis', () => {
 
     it('should set ttl to reflect config override', (done) => {
       const configOverride = { per_day: 5 };
-      const bucketKey = { type: 'ip', key: '7.7.7.12', configOverride};
+      const bucketKey = { type: 'ip', key: '7.7.7.12', configOverride };
       db.take(Object.assign({ count: 'all' }, bucketKey), (err) => {
         if (err) return done(err);
         db.put(bucketKey, (err) => { // restores all 4
@@ -938,7 +1767,7 @@ describe('LimitDBRedis', () => {
     });
 
     it('should return the bucket default for remaining when key does not exist', (done) => {
-      db.get({type: 'ip', key: '8.8.8.8'}, (err, result) => {
+      db.get({ type: 'ip', key: '8.8.8.8' }, (err, result) => {
         if (err) {
           return done(err);
         }
@@ -952,13 +1781,13 @@ describe('LimitDBRedis', () => {
         if (err) {
           return done(err);
         }
-        db.get({type: 'ip', key: '8.8.8.8'}, (err, result) => {
+        db.get({ type: 'ip', key: '8.8.8.8' }, (err, result) => {
           if (err) {
             return done(err);
           }
           assert.equal(result.remaining, 9);
 
-          db.get({type: 'ip', key: '8.8.8.8'}, (err, result) => {
+          db.get({ type: 'ip', key: '8.8.8.8' }, (err, result) => {
             if (err) {
               return done(err);
             }
@@ -970,7 +1799,7 @@ describe('LimitDBRedis', () => {
     });
 
     it('should return the bucket for an unlimited key', (done) => {
-      db.get({type: 'ip', key: '0.0.0.0'}, (err, result) => {
+      db.get({ type: 'ip', key: '0.0.0.0' }, (err, result) => {
         if (err) {
           return done(err);
         }
@@ -980,7 +1809,7 @@ describe('LimitDBRedis', () => {
           if (err) {
             return done(err);
           }
-          db.get({type: 'ip', key: '0.0.0.0'}, (err, result) => {
+          db.get({ type: 'ip', key: '0.0.0.0' }, (err, result) => {
             if (err) {
               return done(err);
             }
@@ -995,7 +1824,7 @@ describe('LimitDBRedis', () => {
 
     it('should use size config override when provided', (done) => {
       const configOverride = { size: 7 };
-      db.get({type: 'ip', key: '7.7.7.13', configOverride}, (err, result) => {
+      db.get({ type: 'ip', key: '7.7.7.13', configOverride }, (err, result) => {
         if (err) {
           return done(err);
         }
@@ -1050,7 +1879,9 @@ describe('LimitDBRedis', () => {
           key: '211.76.23.5',
           count: 3
         }, (err, response) => {
-          if (err) { return done(err); }
+          if (err) {
+            return done(err);
+          }
           var waited = Date.now() - waitingSince;
           assert.ok(response.conformant);
           assert.ok(response.delayed);
@@ -1073,7 +1904,9 @@ describe('LimitDBRedis', () => {
           key: '211.76.23.5',
           count: 0
         }, (err, response) => {
-          if (err) { return done(err); }
+          if (err) {
+            return done(err);
+          }
           var waited = Date.now() - waitingSince;
           assert.ok(response.conformant);
           assert.notOk(response.delayed);
@@ -1101,7 +1934,9 @@ describe('LimitDBRedis', () => {
           count: 1,
           configOverride
         }, (err, response) => {
-          if (err) { return done(err); }
+          if (err) {
+            return done(err);
+          }
           var waited = Date.now() - waitingSince;
           assert.ok(response.conformant);
           assert.ok(response.delayed);
@@ -1158,33 +1993,33 @@ describe('LimitDBRedis Ping', () => {
     maxFailedAttempts: 3,
     reconnectIfFailed: () => true,
     maxFailedAttemptsToRetryReconnect: 10
-  }
+  };
 
   let config = {
     uri: 'localhost:22222',
     buckets,
     prefix: 'tests:',
     ping,
-  }
+  };
 
   let redisProxy;
   let toxiproxy;
   let db;
 
   beforeEach((done) => {
-    toxiproxy = new Toxiproxy("http://localhost:8474");
+    toxiproxy = new Toxiproxy('http://localhost:8474');
     proxyBody = {
-      listen: "0.0.0.0:22222",
+      listen: '0.0.0.0:22222',
       name: crypto.randomUUID(), //randomize name to avoid concurrency issues
-      upstream: "redis:6379"
+      upstream: 'redis:6379'
     };
     toxiproxy.createProxy(proxyBody)
-    .then((proxy) => {
-      redisProxy = proxy;
-      done();
-    })
+      .then((proxy) => {
+        redisProxy = proxy;
+        done();
+      });
 
-  })
+  });
 
   afterEach((done) => {
     redisProxy.remove().then(() =>
@@ -1196,10 +2031,10 @@ describe('LimitDBRedis Ping', () => {
         done(err);
       })
     );
-  })
+  });
 
   it('should emit ping success', (done) => {
-    db = createDB({ uri: 'localhost:22222', buckets, prefix: 'tests:', ping }, done)
+    db = createDB({ uri: 'localhost:22222', buckets, prefix: 'tests:', ping }, done);
     db.once(('ping'), (result) => {
       if (result.status === LimitDB.PING_SUCCESS) {
         done();
@@ -1210,7 +2045,7 @@ describe('LimitDBRedis Ping', () => {
   it('should emit "ping - error" when redis stops responding pings', (done) => {
     let called = false;
 
-    db = createDB(config, done)
+    db = createDB(config, done);
     db.once(('ready'), () => addLatencyToxic(redisProxy, 20000, noop));
     db.on(('ping'), (result) => {
       if (result.status === LimitDB.PING_ERROR && !called) {
@@ -1223,12 +2058,12 @@ describe('LimitDBRedis Ping', () => {
 
   it('should emit "ping - reconnect" when redis stops responding pings and client is configured to reconnect', (done) => {
     let called = false;
-    db = createDB(config, done)
+    db = createDB(config, done);
     db.once(('ready'), () => addLatencyToxic(redisProxy, 20000, noop));
     db.on(('ping'), (result) => {
       if (result.status === LimitDB.PING_RECONNECT && !called) {
         called = true;
-        db.removeAllListeners('ping')
+        db.removeAllListeners('ping');
         done();
       }
     });
@@ -1236,26 +2071,26 @@ describe('LimitDBRedis Ping', () => {
 
   it('should emit "ping - reconnect dry run" when redis stops responding pings and client is NOT configured to reconnect', (done) => {
     let called = false;
-    db = createDB({ ...config, ping: {...ping, reconnectIfFailed: () => false} }, done)
+    db = createDB({ ...config, ping: { ...ping, reconnectIfFailed: () => false } }, done);
     db.once(('ready'), () => addLatencyToxic(redisProxy, 20000, noop));
     db.on(('ping'), (result) => {
       if (result.status === LimitDB.PING_RECONNECT_DRY_RUN && !called) {
         called = true;
-        db.removeAllListeners('ping')
+        db.removeAllListeners('ping');
         done();
       }
     });
   });
 
   it(`should NOT emit ping events when config.ping is not set`, (done) => {
-    db = createDB({ ...config, ping: undefined }, done)
+    db = createDB({ ...config, ping: undefined }, done);
 
     db.once(('ping'), (result) => {
-      done(new Error(`unexpected ping event emitted ${result}`))
-    })
+      done(new Error(`unexpected ping event emitted ${result}`));
+    });
 
     //If after 100ms there are no interactions, we mark the test as passed.
-    setTimeout(done, 100)
+    setTimeout(done, 100);
   });
 
   it('should recover from a connection loss', (done) => {
@@ -1263,7 +2098,7 @@ describe('LimitDBRedis Ping', () => {
     let reconnected = false;
     let toxic = undefined;
     let timeoutId;
-    db = createDB({ ...config, ping: {...ping, interval: 50} }, done)
+    db = createDB({ ...config, ping: { ...ping, interval: 50 } }, done);
 
     db.on(('ping'), (result) => {
       if (result.status === LimitDB.PING_SUCCESS) {
@@ -1272,22 +2107,22 @@ describe('LimitDBRedis Ping', () => {
           toxic = addLatencyToxic(redisProxy, 20000, (t) => toxic = t);
         } else if (reconnected) {
           clearTimeout(timeoutId);
-          db.removeAllListeners('ping')
+          db.removeAllListeners('ping');
           done();
         }
       } else if (result.status === LimitDB.PING_RECONNECT) {
-        if (pingResponded && !reconnected ) {
+        if (pingResponded && !reconnected) {
           reconnected = true;
           toxic.remove();
         }
       }
-    })
+    });
 
-    timeoutId = setTimeout(() => done(new Error("Not reconnected")), 1800);
+    timeoutId = setTimeout(() => done(new Error('Not reconnected')), 1800);
   });
 
   const createDB = (config, done) => {
-    let tmpDB = new LimitDB(config)
+    let tmpDB = new LimitDB(config);
 
     tmpDB.on(('error'), (err) => {
       //As we actively close the connection, there might be network-related errors while attempting to reconnect
@@ -1296,23 +2131,23 @@ describe('LimitDBRedis Ping', () => {
       }
 
       if (err) {
-        console.log(err, err.message)
-        done(err)
+        console.log(err, err.message);
+        done(err);
       }
-    })
+    });
 
-    return tmpDB
-  }
+    return tmpDB;
+  };
 
   const addLatencyToxic = (proxy, latency, callback) => {
     let toxic = new Toxic(
       proxy,
-      {type: "latency", attributes: { latency: latency }}
-    )
-    proxy.addToxic(toxic).then(callback)
-  }
+      { type: 'latency', attributes: { latency: latency } }
+    );
+    proxy.addToxic(toxic).then(callback);
+  };
 
 
-
-  const noop = () => {}
+  const noop = () => {
+  };
 });

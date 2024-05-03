@@ -6,7 +6,7 @@ const LimitDB = require('../lib/db');
 const assert = require('chai').assert;
 const { Toxiproxy, Toxic } = require('toxiproxy-node-client');
 const crypto = require('crypto');
-const { ERL_DEFAULT_ACTIVATION_PERIOD_SECONDS, endOfMonthTimestamp } = require('../lib/utils');
+const { endOfMonthTimestamp } = require('../lib/utils');
 
 const buckets = {
   ip: {
@@ -190,7 +190,6 @@ describe('LimitDBRedis', () => {
           elevated_limits: {
             erl_is_active_key: 'some_erl_active_identifier',
             erl_quota_key: 'erlquotakey',
-            per_calendar_month: 10
           }
         }
       },
@@ -202,7 +201,6 @@ describe('LimitDBRedis', () => {
           elevated_limits: {
             erl_is_active_key: 'some_erl_active_identifier',
             erl_quota_key: 'erlquotakey',
-            per_calendar_month: 10
           }
         }
       }
@@ -899,6 +897,8 @@ describe('LimitDBRedis', () => {
           elevated_limits: {
             size: 2,
             per_minute: 2,
+            erl_activation_period_seconds: 900,
+            quota_per_calendar_month: 10,
           },
         });
 
@@ -915,6 +915,7 @@ describe('LimitDBRedis', () => {
           elevated_limits: {
             size: 2,
             per_minute: 2,
+            erl_activation_period_seconds: 900,
             quota_per_calendar_month: 10,
           },
         });
@@ -937,6 +938,7 @@ describe('LimitDBRedis', () => {
           elevated_limits: {
             size: 2,
             per_minute: 2,
+            erl_activation_period_seconds: 900,
             quota_per_calendar_month: 10,
           },
         });
@@ -1045,30 +1047,36 @@ describe('LimitDBRedis', () => {
           assert.equal(result.remaining, 7); // Total used tokens so far: 3
         });
       });
-      it('should use default ttl if erl activation period is not configured', (done) => {
+      it('should return a config error if erl_activation_period is not provided', () => {
         const bucketName = 'test-bucket';
-        db.configurateBucket(bucketName, {
-          size: 1,
-          per_minute: 1,
-          elevated_limits: {
-            size: 10,
+        try {
+          db.configurateBucket(bucketName, {
+            size: 1,
             per_minute: 1,
-            erl_activation_period_seconds: 900,
-            quota_per_calendar_month: 10
-          }
-        });
-        const params = {
-          type: bucketName,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey' },
-        };
-
-        takeElevatedPromise(params)
-          .then(() => takeElevatedPromise(params))
-          .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
-            assert.equal(ttl, ERL_DEFAULT_ACTIVATION_PERIOD_SECONDS); // 15 minutes in seconds
-            done();
-          }));
+            elevated_limits: {
+              size: 10,
+              per_minute: 1,
+            }
+          });
+        } catch (err) {
+          assert.equal(err.message, 'erl_activation_period_seconds is required for elevated limits')
+        }
+      });
+      it('should return a config error if quota per interval is not provided', () => {
+        const bucketName = 'test-bucket';
+        try {
+          db.configurateBucket(bucketName, {
+            size: 1,
+            per_minute: 1,
+            elevated_limits: {
+              size: 10,
+              per_minute: 1,
+              erl_activation_period_seconds: 900,
+            }
+          });
+        } catch (err) {
+          assert.equal(err.message, 'a valid quota amount per interval is required for elevated limits')
+        }
       });
       it('should use ttl calculated using erl activation period if erl activation period is configured', (done) => {
         const bucketName = 'test-bucket';
@@ -1218,12 +1226,12 @@ describe('LimitDBRedis', () => {
             .then((result) => {
               assert.isFalse(result.conformant);
               db.redis.ttl(erl_is_active_key, (err, ttl) => {
-                assert.equal(ttl, ERL_DEFAULT_ACTIVATION_PERIOD_SECONDS); // uses default activation period
+                assert.equal(ttl, 900);
                 done();
               });
             });
         });
-        it('should use erl_activation_period from elevated_limits config override when provided', (done) => {
+        it('should use erl_activation_period from elevated_limits config override when/ provided', (done) => {
           const bucketName = 'bucket_with_no_elevated_limits_config';
           const erl_is_active_key = 'some_erl_active_identifier';
           db.configurateBucket(bucketName, {
@@ -1285,7 +1293,7 @@ describe('LimitDBRedis', () => {
           });
         });
 
-        it('should return quota_remaining = quota_per_calendar_month-1, quota_allocated and erl_activation_period_seconds when ERL is triggered', (done) => {
+        it('should return quota_remaining = quota_per_calendar_month-1, quota_allocated and erl_activation_period_seconds when ERL is triggered for the first time in the month', (done) => {
           params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey' };
 
           // check erl not activated yet
@@ -1477,7 +1485,7 @@ describe('LimitDBRedis', () => {
             .then(() => done());
         });
 
-        it('should not activate ERL if erl_quota_key exists and is 0', (done) => {
+        it('should not activate ERL if erl_quota_key exists and is at its max allowed', (done) => {
           params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey' };
 
           // set erl_quota_key to the given max allowed per month in redis
@@ -1509,7 +1517,7 @@ describe('LimitDBRedis', () => {
             .then(() => done());
         });
 
-        it('should activate ERL after erl_quota_key reaches the given quota per month expires', (done) => {
+        it('should activate ERL when erl_quota_key expires after reaching allowed per month quota', (done) => {
           params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey' };
 
           // set erl_quota_key to given max quota per month in redis

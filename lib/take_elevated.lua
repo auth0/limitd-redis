@@ -47,17 +47,28 @@ local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, cu
 end
 
 local function takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
-    local erl_quota = 0
-    local get_quota_result = redis.call('GET', erl_quota_key)
-    if type(get_quota_result) == 'string' then
-        erl_quota = tonumber(get_quota_result)
+    if erl_quota_amount <= 0 then
+        -- no quota available to take
+        return 0
     end
 
-    if erl_quota < erl_quota_amount then
-        erl_quota = erl_quota + 1
-        redis.call('SET', erl_quota_key, erl_quota, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
+    local get_quota_result = redis.call('GET', erl_quota_key)
+    if type(get_quota_result) ~= 'string' then
+        -- first activation. Set quota to 1 and return.
+        redis.call('SET', erl_quota_key, 1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
+        return 1
     end
-    return erl_quota
+
+    local erl_quota_used = tonumber(get_quota_result)
+    if erl_quota_used >= erl_quota_amount then
+        -- quota is exceeded. Return the current quota.
+        return erl_quota_used
+    end
+
+    -- quota is not exceeded. Increment and return.
+    local new_quota = erl_quota_used + 1
+    redis.call('SET', erl_quota_key, new_quota, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
+    return new_quota
 end
 
 -- Enable verbatim replication to ensure redis sends script's source code to all masters
@@ -91,8 +102,8 @@ else
         local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
         local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take
         if enough_tokens_after_erl_activation then
-            local erl_quota = takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
-            if erl_quota < erl_quota_amount then
+            local erl_quota_used = takeERLQuota(erl_quota_key, erl_quota_amount, erl_quota_expiration_epoch)
+            if erl_quota_used < erl_quota_amount then
                 enough_tokens = enough_tokens_after_erl_activation -- we are returning this value, thus setting it
                 bucket_content_after_take = math.min(bucket_content_after_erl_activation - tokens_to_take, erl_bucket_size)
                 -- save erl state
@@ -100,7 +111,7 @@ else
                 redis.call('EXPIRE', erlKey, erl_activation_period_seconds)
                 is_erl_activated = 1
                 erl_triggered = true
-                erl_quota_left = erl_quota_amount - erl_quota
+                erl_quota_left = erl_quota_amount - erl_quota_used
             end
         end
     end

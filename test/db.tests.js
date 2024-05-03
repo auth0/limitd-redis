@@ -1188,6 +1188,56 @@ describe('LimitDBRedis', () => {
           });
       });
 
+      describe('when erl is activated for the tenant', () => {
+        const nonERLTestBucket = 'nonerl-test-bucket';
+        const ERLBucketName = 'erl-test-bucket';
+        const erlParams = {
+          type: ERLBucketName,
+          key: 'some_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey' },
+        };
+        const nonErlParams = {
+          type: nonERLTestBucket,
+          key: 'some_key',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey' },
+        };
+
+        beforeEach(async () => {
+            db.configurateBucket(nonERLTestBucket, {
+              size: 1,
+              per_minute: 1,
+            });
+            db.configurateBucket(ERLBucketName, {
+              size: 1,
+              per_minute: 1,
+              elevated_limits: {
+                size: 5,
+                per_minute: 1,
+                interval: 10,
+                erl_activation_period_seconds: 900,
+                quota_per_calendar_month: 10
+              }
+            });
+            await takeElevatedPromise(erlParams)
+            await takeElevatedPromise(erlParams) // erl activated
+        })
+
+        describe('when a bucket without erl configuration is exceeded', async () => {
+          it('should be non conformant', async () => {
+            await takeElevatedPromise(nonErlParams) // non-erl bucket now empty
+            assert.isFalse((await takeElevatedPromise(nonErlParams)).conformant)
+          })
+        })
+
+        describe('when a bucket with erl configuration is exceeded', () => {
+          it('should take from the erl bucket', async () => {
+            await takeElevatedPromise(erlParams)
+            const result = await takeElevatedPromise(erlParams);
+            assert.isTrue(result.conformant)
+          })
+        })
+      })
+
       describe('overrides', () => {
         it('should use elevated_limits config override when provided', (done) => {
           const bucketName = 'bucket_with_no_elevated_limits_config';

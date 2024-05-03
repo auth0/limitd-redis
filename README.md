@@ -136,11 +136,11 @@ buckets = {
   ip: {
     size: 10,
     per_second: 5,
-    elevated_limits: {
-      size: 100, // new bucket size. already used tokens will be deducted from current bucket content upon ERL activation.
-      per_second: 50, // new bucket refill rate. You can use all the other refill rate configurations defined above, such as per_minute, per_hour, per_interval etc.
-      erl_activation_period_seconds: 300, // for how long the ERL configuration should remain active once activated.
-      quota_per_calendar_month: 100, // the amount of ERL activations that can be done in a calendar month. Each activation will remain active during erl_activation_period_seconds. 
+    elevated_limits: { // Optional. ERL configuration if needed for the bucket. If not defined, the bucket will not use ERL.
+      size: 100, // Optional. New bucket size. already used tokens will be deducted from current bucket content upon ERL activation. Default: same as the original bucket.
+      per_second: 50, // Optional. New bucket refill rate. You can use all the other refill rate configurations defined above, such as per_minute, per_hour, per_interval etc. Default: same as the original bucket.
+      erl_activation_period_seconds: 300, // Mandatory. For how long the ERL configuration should remain active once activated. No default value.
+      quota_per_calendar_month: 100, // Mandatory. The amount of ERL activations that can be done in a calendar month. Each activation will remain active during erl_activation_period_seconds. 
     }
   }
 }
@@ -265,6 +265,24 @@ limitd.take(type, key, { count: 3, configOverride }, (err, result) => {
 ```
 
 Config overrides follow the same rules as Bucket configuration elements with respect to default size when not provided and ttl.
+
+### Overriding Configuration at Runtime with ERL
+We can also override the configuration for ERL buckets at runtime. The shape of this `configOverride` parameter is the same as `Buckets` above.
+
+An example configuration override call for ERL might look like this:
+
+```js
+const configOverride = {
+  size: 45,
+  per_hour: 15,
+  elevated_limits: {
+    size: 100,
+    per_hour: 50,
+    erl_activation_period_seconds: 300,
+    quota_per_calendar_month: 100
+  }
+}
+```
 
 ## Author
 

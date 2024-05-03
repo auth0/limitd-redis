@@ -43,41 +43,28 @@ describe('utils', () => {
         erl_activation_period_seconds: 300
       });
     });
-    it('should add default ERL configuration', () => {
-      const bucket = {
-        size: 100,
-        per_second: 100,
-      };
-      const response = normalizeType(bucket);
-      const { elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
-      expect(rest).excluding('drip_interval').to.deep.equal({
-        size: 100,
-        interval: 1000,
-        per_interval: 100,
-        ttl: 1,
-        ms_per_interval: 0.1,
-      });
 
-      expect(elevated_limits).excluding('drip_interval').to.deep.equal({
-        size: 100,
-        interval: 1000,
-        per_interval: 100,
-        ttl: 1,
-        ms_per_interval: 0.1,
-        erl_activation_period_seconds: 900,
-        erl_quota_amount: 0,
-        erl_quota_interval: 'quota_per_calendar_month',
-      });
-    });
 
     it('should add overrides', () => {
       const bucket = {
         size: 100,
         per_second: 100,
+        elevated_limits: {
+          size: 200,
+          per_second: 200,
+          erl_activation_period_seconds: 300,
+          quota_per_calendar_month: 5
+        },
         overrides: {
           '127.0.0.1': {
             size: 200,
-            per_second: 200
+            per_second: 200,
+            elevated_limits: {
+              size: 400,
+              per_second: 400,
+              erl_activation_period_seconds: 900,
+              quota_per_calendar_month: 10,
+            },
           }
         }
       };
@@ -95,13 +82,13 @@ describe('utils', () => {
       });
       expect(overrides['127.0.0.1'].elevated_limits).excluding('drip_interval').to.deep.equal({
         erl_activation_period_seconds: 900,
-        erl_quota_amount: 0,
+        erl_quota_amount: 10,
         erl_quota_interval: "quota_per_calendar_month",
-        size: 100,
+        size: 400,
         interval: 1000,
-        per_interval: 100,
+        per_interval: 400,
         ttl: 1,
-        ms_per_interval: 0.1,
+        ms_per_interval: 0.4,
       });
     });
   });

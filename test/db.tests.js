@@ -177,14 +177,13 @@ describe('LimitDBRedis', () => {
     const testsParams = [
       {
         name: 'regular take',
-        init: () => {
-        },
+        init: () => db.configurateBuckets(buckets),
         take: (params, callback) => db.take(params, callback),
         params: {}
       },
       {
         name: 'elevated take with no elevated configuration',
-        init: () => {},
+        init: () => db.configurateBuckets(buckets),
         take: (params, callback) => db.takeElevated(params, callback),
         params: {
           elevated_limits: {

@@ -126,7 +126,6 @@ To be able to allow its use within limitd-redis, you need to:
 2. pass the `elevated_limits` parameter with the following properties:
    - `erl_is_active_key`: the identifier of the ERL activation for the bucket. This works similarly to the `key` you pass to `limitd.take`, which is the identifier of the bucket; however it's used to track the ERL activation for the bucket instead
    - `erl_quota_key`: the identifier of the ERL quota bucket name.
-   - `per_calendar_month`: the amount of tokens that the quota bucket will receive on every calendar month.
 3. make sure that the bucket definition has ERL configured.
 
 ### Configuration
@@ -137,10 +136,11 @@ buckets = {
   ip: {
     size: 10,
     per_second: 5,
-    elevated_limits: {
-      size: 100, // new bucket size. already used tokens will be deducted from current bucket content upon ERL activation.
-      per_second: 50, // new bucket refill rate. You can use all the other refill rate configurations defined above, such as per_minute, per_hour, per_interval etc.
-      erl_activation_period_seconds: 300, // for how long the ERL configuration should remain active once activated.
+    elevated_limits: { // Optional. ERL configuration if needed for the bucket. If not defined, the bucket will not use ERL.
+      size: 100, // Optional. New bucket size. already used tokens will be deducted from current bucket content upon ERL activation. Default: same as the original bucket.
+      per_second: 50, // Optional. New bucket refill rate. You can use all the other refill rate configurations defined above, such as per_minute, per_hour, per_interval etc. Default: same as the original bucket.
+      erl_activation_period_seconds: 300, // Mandatory. For how long the ERL configuration should remain active once activated. No default value.
+      quota_per_calendar_month: 100, // Mandatory. The amount of ERL activations that can be done in a calendar month. Each activation will remain active during erl_activation_period_seconds. 
     }
   }
 }
@@ -151,8 +151,7 @@ ERL quota represents the number of ERL activations that can be performed in a ca
 
 When ERL is triggered, it will keep activated for the `erl_activation_period_seconds` defined in the bucket configuration.
 
-The amount of minutes per month allowed in ERL mode is defined by: `per_calendar_month * erl_activation_period_seconds / 60`.
-
+The amount of minutes per month allowed in ERL mode is defined by: `quota_per_calendar_month * erl_activation_period_seconds / 60`.
 
 The overrides in ERL work the same way as for the regular bucket. Both size and per_interval are mandatory when specifying an override. 
 
@@ -200,16 +199,15 @@ limitd.takeElevated(type, key, { count, configOverride, elevated_limits }, (err,
 -  `elevated_limits`: (object)
   - `erl_is_active_key`: (string) the identifier of the ERL activation for the bucket.
   - `erl_quota_key`: (string) the identifier of the ERL quota bucket name.
-  - `per_calendar_month`: (number) the amount of tokens that the quota bucket will receive on every calendar month.
 
-`erlQuota.per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
+`quota_per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
 The quota bucket will be used to track the amount of ERL activations that can be done in a calendar month. 
 If the quota bucket is empty, the ERL activation will not be possible. 
 The quota bucket will be refilled at the beginning of every calendar month.
 
-For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `per_calendar_month: 5`.
+For instance, if you want to allow a user to activate ERL for a bucket only 5 times in a month, you can define a quota bucket with `quota_per_calendar_month: 5`.
 That means that the user can activate ERL for the bucket 5 times in a month, and after that, the ERL activation will not be possible until the start of the next month.
-The total minutes allowed for ERL activation in a calendar month is calculated as follows: `per_calendar_month * erl_activation_period_seconds / 60`.
+The total minutes allowed for ERL activation in a calendar month is calculated as follows: `quota_per_calendar_month * erl_activation_period_seconds / 60`.
 
 The result object has:
 -  `conformant` (boolean): true if the requested amount is conformant to the limit.
@@ -219,13 +217,14 @@ The result object has:
 -  `elevated_limits` (object)
   -  `triggered` (boolean): true if ERL was triggered in the current request.
   -  `activated` (boolean): true if ERL is activated. Not necessarily triggered in this call.
-  -  `quota_count` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the current quota count left for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+  -  `quota_remaining` (int): **[Only valid if triggered=true]** If `triggered=true`, this value contains the remaining quota count for the given `erl_quota_key`. Otherwise, it will return -1, which is not valid to be interpreted as a quota count.
+  -  `quota_allocated`: (int): amount of quota allocated in the bucket configuration. This value is defined in the bucket configuration and is the same as `quota_per_calendar_month`.
+  -  `erl_activation_period_seconds`: (int): the ERL activation period as defined in the bucket configuration used in the current request.
 
 Example of interpretation:
 ``` javascript
-if erl_activated && erl_quota_count >= 0; // quota left in the quotaKey bucket
-if erl_activated && erl_quota_count = -1; // ERL is activated, but it wasn't triggered in this call, so we haven't identified the quota for this call.
-if !erl_activated; // ERL is not activated, hence the quota hasn't been identified for this call. 
+if erl_triggered // quota left in the quotaKey bucket
+if !erl_triggered // ERL wasn't triggered in this call, so we haven't identified the remaining quota.
 ```
 
 ## PUT
@@ -266,6 +265,24 @@ limitd.take(type, key, { count: 3, configOverride }, (err, result) => {
 ```
 
 Config overrides follow the same rules as Bucket configuration elements with respect to default size when not provided and ttl.
+
+### Overriding Configuration at Runtime with ERL
+We can also override the configuration for ERL buckets at runtime. The shape of this `configOverride` parameter is the same as `Buckets` above.
+
+An example configuration override call for ERL might look like this:
+
+```js
+const configOverride = {
+  size: 45,
+  per_hour: 15,
+  elevated_limits: {
+    size: 100,
+    per_hour: 50,
+    erl_activation_period_seconds: 300,
+    quota_per_calendar_month: 100
+  }
+}
+```
 
 ## Author
 

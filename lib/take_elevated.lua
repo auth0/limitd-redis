@@ -8,13 +8,14 @@ local erl_bucket_size = tonumber(ARGV[7])
 local erl_activation_period_seconds = tonumber(ARGV[8])
 local erl_quota_amount = tonumber(ARGV[9])
 local erl_quota_expiration_epoch = tonumber(ARGV[10])
+local erl_configured_for_bucket = tonumber(ARGV[11]) == 1
 
 -- the key to use for pulling last bucket state from redis
 local lastBucketStateKey = KEYS[1]
 
 -- the key for checking in redis if elevated rate limits (erl) were activated earlier
 local erlKey = KEYS[2]
-local is_erl_activated = redis.call('EXISTS', erlKey)
+local is_erl_activated = erl_configured_for_bucket and redis.call('EXISTS', erlKey) or 0
 
 -- the key for erl quota counting
 local erl_quota_key = KEYS[3]
@@ -78,7 +79,7 @@ redis.replicate_commands()
 
 -- calculate new bucket content
 local bucket_content_after_refill
-if is_erl_activated == 1 then
+if erl_configured_for_bucket and is_erl_activated == 1 then
     bucket_content_after_refill = calculateNewBucketContent(current, erl_tokens_per_ms, erl_bucket_size, current_timestamp_ms)
 else
     bucket_content_after_refill = calculateNewBucketContent(current, tokens_per_ms, bucket_size, current_timestamp_ms)
@@ -97,7 +98,7 @@ if enough_tokens then
     end
 else
     -- if tokens are not enough, see if activating erl will help.
-    if is_erl_activated == 0 and erl_quota_amount > 0 then
+    if erl_configured_for_bucket and is_erl_activated == 0 and erl_quota_amount > 0 then
         local used_tokens = bucket_size - bucket_content_after_refill
         local bucket_content_after_erl_activation = erl_bucket_size - used_tokens
         local enough_tokens_after_erl_activation = bucket_content_after_erl_activation >= tokens_to_take

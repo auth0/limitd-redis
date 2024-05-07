@@ -40,8 +40,27 @@ describe('utils', () => {
         per_interval: 300,
         ttl: 1,
         ms_per_interval: 0.3,
-        erl_activation_period_seconds: 300
+        erl_activation_period_seconds: 300,
+        erl_configured_for_bucket: true,
       });
+    });
+
+    it('should return normalized bucket without ERL', () => {
+      const bucket = {
+        size: 100,
+        per_second: 100,
+      };
+      const response = normalizeType(bucket);
+      const { elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
+      expect(rest).excluding('drip_interval').to.deep.equal({
+        size: 100,
+        interval: 1000,
+        per_interval: 100,
+        ttl: 1,
+        ms_per_interval: 0.1,
+      });
+
+      expect(elevated_limits).to.be.undefined;
     });
 
 
@@ -89,6 +108,7 @@ describe('utils', () => {
         per_interval: 400,
         ttl: 1,
         ms_per_interval: 0.4,
+        erl_configured_for_bucket: true,
       });
     });
   });

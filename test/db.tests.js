@@ -1253,6 +1253,11 @@ describe('LimitDBRedis', () => {
           key: 'some_key',
           elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey' },
         };
+        const otherErlParams = {
+          type: ERLBucketName,
+          key: 'some_key',
+          elevated_limits: { erl_is_active_key: 'other_erl_key', erl_quota_key: 'other_quota_key' },
+        };
         const nonErlParams = {
           type: nonERLTestBucket,
           key: 'some_key',
@@ -1277,24 +1282,37 @@ describe('LimitDBRedis', () => {
             });
             await takeElevatedPromise(erlParams)
             await takeElevatedPromise(erlParams) // erl activated
-        })
+        });
 
-        describe('when a bucket without erl configuration is exceeded', async () => {
+        describe('when the limit is exceeded for a bucket without erl configuration', async () => {
           it('should be non conformant', async () => {
             await takeElevatedPromise(nonErlParams) // non-erl bucket now empty
             assert.isFalse((await takeElevatedPromise(nonErlParams)).conformant)
-          })
+          });
         })
 
-        describe('when a bucket with erl configuration is exceeded', () => {
-          it('should take from the erl bucket', async () => {
+        describe('when the limit is exceeded for a bucket with erl configuration', () => {
+          it('should use ERL to take from the bucket if the given erl_is_active_key is set in Redis ', async () => {
+            const activeKey = await redisExistsPromise(erlParams.elevated_limits.erl_is_active_key)
+            assert.equal(activeKey, 1)
             await takeElevatedPromise(erlParams)
             const result = await takeElevatedPromise(erlParams);
             assert.isTrue(result.conformant);
+            assert.isTrue(result.elevated_limits.activated)
             assert.equal(result.limit, 5);
-          })
-        })
-      })
+          });
+          it('should NOT use ERL to take from the bucket if the given erl_is_active_key is NOT set in Redis', async() => {
+            const activeKey = await redisExistsPromise(erlParams.elevated_limits.erl_is_active_key)
+            assert.equal(activeKey, 1)
+            const inactiveKey = await redisExistsPromise(otherErlParams.elevated_limits.erl_is_active_key)
+            assert.equal(inactiveKey, 0)
+            const result = await takeElevatedPromise(otherErlParams);
+            assert.isTrue(result.conformant);
+            assert.isFalse(result.elevated_limits.activated)
+            assert.equal(result.limit, 1);
+          });
+        });
+      });
 
       describe('overrides', () => {
         it('should use elevated_limits config override when provided', (done) => {

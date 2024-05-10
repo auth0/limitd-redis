@@ -57,7 +57,7 @@ local function takeERLQuota(erl_quota_key, erl_quota, erl_quota_expiration_epoch
     if type(previously_used_quota) ~= 'string' then
         -- first activation. Set quota to 1 and return.
         redis.call('SET', erl_quota_key, 1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
-        return 1
+        return 0
     end
 
     previously_used_quota = tonumber(previously_used_quota)
@@ -66,15 +66,9 @@ local function takeERLQuota(erl_quota_key, erl_quota, erl_quota_expiration_epoch
         return previously_used_quota
     end
 
-    if is_erl_activated == 1 then
-        -- erl is already activated. No need to increase quota count. Return the current total used quota.
-        return previously_used_quota
-    end
-
     -- quota is not exceeded. Increment and return.
-    local new_total_used_quota = previously_used_quota + 1
-    redis.call('SET', erl_quota_key, new_total_used_quota, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
-    return new_total_used_quota
+    redis.call('SET', erl_quota_key, previously_used_quota+1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
+    return previously_used_quota
 end
 
 -- Enable verbatim replication to ensure redis sends script's source code to all masters

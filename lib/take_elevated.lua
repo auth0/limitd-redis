@@ -111,7 +111,7 @@ else
                 redis.call('EXPIRE', erlKey, erl_activation_period_seconds)
                 is_erl_activated = 1
                 erl_triggered = true
-                erl_quota_left = erl_quota - previously_used_quota
+                erl_quota_left = erl_quota - previously_used_quota - 1
             end
         end
     end

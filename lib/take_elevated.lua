@@ -66,9 +66,13 @@ local function takeERLQuota(erl_quota_key, erl_quota, erl_quota_expiration_epoch
         return previously_used_quota
     end
 
+    if is_erl_activated == 1 then
+        -- erl is already activated. No need to increase quota count. Return the current total used quota.
+        return previously_used_quota
+    end
+
     -- quota is not exceeded. Increment and return.
     local new_total_used_quota = previously_used_quota + 1
-
     redis.call('SET', erl_quota_key, new_total_used_quota, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
     return new_total_used_quota
 end

@@ -34,7 +34,7 @@ describe('utils', () => {
 
       expect(elevated_limits).excluding('drip_interval').to.deep.equal({
         size: 300,
-        erl_quota_amount: 192,
+        erl_quota: 192,
         erl_quota_interval: 'quota_per_calendar_month',
         interval: 1000,
         per_interval: 300,
@@ -101,7 +101,7 @@ describe('utils', () => {
       });
       expect(overrides['127.0.0.1'].elevated_limits).excluding('drip_interval').to.deep.equal({
         erl_activation_period_seconds: 900,
-        erl_quota_amount: 10,
+        erl_quota: 10,
         erl_quota_interval: "quota_per_calendar_month",
         size: 400,
         interval: 1000,

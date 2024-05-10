@@ -1245,6 +1245,85 @@ describe('LimitDBRedis', () => {
           });
       });
 
+      it("should exhaust all monthly erl quota before rate limiting", (done) => {
+        const bucketName = 'test-bucket';
+        db.configurateBucket(bucketName, {
+          size: 1,
+          per_minute: 1,
+          elevated_limits: {
+            size: 3,
+            per_minute: 3,
+            erl_activation_period_seconds: 900,
+            quota_per_calendar_month: 1
+          }
+        });
+        const params = {
+          type: bucketName,
+          key: 'some_key ',
+          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey' },
+        };
+
+        // check erl not activated yet
+        redisExistsPromise(params.elevated_limits.erl_is_active_key)
+            .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+            // check erl_quota_key does not exist
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key)
+            .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0)))
+            // attempt to take elevated should work for first token
+            .then(() => takeElevatedPromise(params))
+            .then((result) => {
+              assert.isTrue(result.conformant);
+              assert.isFalse(result.elevated_limits.activated);
+              assert.isFalse(result.elevated_limits.triggered);
+              assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
+              assert.equal(result.limit, 1);
+            })
+            .then(() => redisExistsPromise(params.elevated_limits.erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key)
+            .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0)))
+            // next takeElevated should activate ERL
+            .then(() => takeElevatedPromise(params))
+            .then((result) => {
+              assert.isTrue(result.conformant);
+              assert.isTrue(result.elevated_limits.activated);
+              assert.isTrue(result.elevated_limits.triggered);
+              assert.equal(result.limit, 3);
+            })
+            .then(() => redisExistsPromise(params.elevated_limits.erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
+            // check erlQuota was increased
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
+            // exhaust the bucket
+            .then(() => takeElevatedPromise(params))
+            .then((result) => {
+              assert.isTrue(result.conformant);
+              assert.isTrue(result.elevated_limits.activated);
+              assert.isFalse(result.elevated_limits.triggered);
+              assert.equal(result.limit, 3);
+            })
+            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
+            // remove erl_is_active_key to stop ERL
+            .then(() => redisDeletePromise(params.elevated_limits.erl_is_active_key))
+            // next takeElevated should not activate ERL
+            .then(() => takeElevatedPromise(params))
+            .then((result) => {
+              assert.isFalse(result.conformant);
+              assert.isFalse(result.elevated_limits.activated);
+              assert.isFalse(result.elevated_limits.triggered);
+              assert.isTrue(result.elevated_limits.erl_configured_for_bucket);
+              assert.equal(result.limit, 1);
+            })
+            .then(() => redisExistsPromise(params.elevated_limits.erl_is_active_key))
+            .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
+            // check erlQuota was NOT increased
+            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key))
+            .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
+            .then(() => done());
+      });
+
       describe('when erl is activated for the tenant with multiple bucket configurations', () => {
         const nonERLTestBucket = 'nonerl-test-bucket';
         const ERLBucketName = 'erl-test-bucket';

@@ -1,7 +1,7 @@
 /* eslint-env node, mocha */
 const assert = require('chai').assert;
 
-const { validateParams } = require('../lib/validation');
+const { validateParams, validateERLParams } = require('../lib/validation');
 
 describe('validation', () => {
   describe('validateParameters', () => {
@@ -120,6 +120,86 @@ describe('validation', () => {
           assert.isUndefined(result);
         });
       });
+    });
+  });
+  describe('validateERLParams', () => {
+    it('should return appropriate keys', () => {
+      const erlParams = {
+        erl_is_active_key: 'erl_is_active_key',
+        erl_quota_key: 'erl_quota_key',
+        erl_activation_period_seconds: 900,
+        erl_quota: 10,
+        erl_quota_interval: 'quota_per_calendar_month'
+      };
+
+      const result = validateERLParams(erlParams);
+
+      assert.isUndefined(result);
+    });
+    it('should return erl_is_active_key is required for elevated limits if not provided', () => {
+      const erlParams = {
+        erl_quota_key: 'erl_quota_key',
+        erl_activation_period_seconds: 900,
+        erl_quota: 10,
+        erl_quota_interval: 'quota_per_calendar_month'
+      };
+
+      const result = validateERLParams(erlParams);
+
+      assert.strictEqual(result.message, 'erl_is_active_key is required for elevated limits');
+      assert.deepEqual(result.extra, { code: 108 });
+    });
+    it('should return erl_quota_key is required for elevated limits if not provided', () => {
+      const erlParams = {
+        erl_is_active_key: 'erl_is_active_key',
+        erl_activation_period_seconds: 900,
+        erl_quota: 10,
+        erl_quota_interval: 'quota_per_calendar_month'
+      };
+
+      const result = validateERLParams(erlParams);
+
+      assert.strictEqual(result.message, 'erl_quota_key is required for elevated limits');
+      assert.deepEqual(result.extra, { code: 110 });
+    });
+    it('should return erl_activation_period_seconds is required for elevated limits if not provided', () => {
+      const erlParams = {
+        erl_is_active_key: 'erl_is_active_key',
+        erl_quota_key: 'erl_quota_key',
+        erl_quota: 10,
+        erl_quota_interval: 'quota_per_calendar_month'
+      };
+
+      const result = validateERLParams(erlParams);
+
+      assert.strictEqual(result.message, 'erl_activation_period_seconds is required for elevated limits');
+      assert.deepEqual(result.extra, { code: 111 });
+    });
+    it('should return a valid quota amount per interval is required for elevated limits if erl_quota_interval is not present', () => {
+      const erlParams = {
+        erl_is_active_key: 'erl_is_active_key',
+        erl_quota_key: 'erl_quota_key',
+        erl_activation_period_seconds: 900,
+        erl_quota: 10,
+      };
+
+      const result = validateERLParams(erlParams);
+
+      assert.strictEqual(result.message, 'a valid quota amount per interval is required for elevated limits');
+      assert.deepEqual(result.extra, { code: 112 });
+    });
+    it('should return a valid quota amount per interval is required for elevated limits if erl_quota is not present', () => {
+      const erlParams = {
+        erl_is_active_key: 'erl_is_active_key',
+        erl_quota_key: 'erl_quota_key',
+        erl_activation_period_seconds: 900,
+        erl_quota_interval: 'quota_per_calendar_month',
+      };
+
+      const result = validateERLParams(erlParams);
+
+      assert.strictEqual(result.message, 'a valid quota amount per interval is required for elevated limits');
+      assert.deepEqual(result.extra, { code: 112 });
     });
   });
 });

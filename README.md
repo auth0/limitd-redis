@@ -139,8 +139,6 @@ buckets = {
     elevated_limits: { // Optional. ERL configuration if needed for the bucket. If not defined, the bucket will not use ERL.
       size: 100, // Optional. New bucket size. already used tokens will be deducted from current bucket content upon ERL activation. Default: same as the original bucket.
       per_second: 50, // Optional. New bucket refill rate. You can use all the other refill rate configurations defined above, such as per_minute, per_hour, per_interval etc. Default: same as the original bucket.
-      erl_activation_period_seconds: 300, // Mandatory. For how long the ERL configuration should remain active once activated. No default value.
-      quota_per_calendar_month: 100, // Mandatory. The amount of ERL activations that can be done in a calendar month. Each activation will remain active during erl_activation_period_seconds. 
     }
   }
 }
@@ -199,6 +197,8 @@ limitd.takeElevated(type, key, { count, configOverride, elevated_limits }, (err,
 -  `elevated_limits`: (object)
   - `erl_is_active_key`: (string) the identifier of the ERL activation for the bucket.
   - `erl_quota_key`: (string) the identifier of the ERL quota bucket name.
+  - `erl_activation_period_seconds`: (int) the ERL activation period as defined in the bucket configuration used in the current request.
+  - `quota_per_calendar_month`: (int) the amount of ERL activations that can be done in a calendar month. Each activation will remain active during `erl_activation_period_seconds`.
 
 `quota_per_calendar_month` is the only refill rate available for ERL quota buckets at the moment. 
 The quota bucket will be used to track the amount of ERL activations that can be done in a calendar month. 
@@ -257,11 +257,11 @@ const configOverride = {
 // take one
 limitd.take(type, key, { configOverride }, (err, result) => {
   console.log(result);
-}
+});
 // take multiple
 limitd.take(type, key, { count: 3, configOverride }, (err, result) => {
   console.log(result);
-}););
+});
 ```
 
 Config overrides follow the same rules as Bucket configuration elements with respect to default size when not provided and ttl.
@@ -278,8 +278,6 @@ const configOverride = {
   elevated_limits: {
     size: 100,
     per_hour: 50,
-    erl_activation_period_seconds: 300,
-    quota_per_calendar_month: 100
   }
 }
 ```

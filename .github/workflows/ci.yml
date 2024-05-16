@@ -9,7 +9,7 @@ on:
       - master
 
 jobs:
-  docker:
+  test:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     strategy:

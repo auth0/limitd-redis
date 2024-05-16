@@ -1,4 +1,3 @@
-/* eslint-env node, mocha */
 const assert = require('chai').assert;
 
 const { validateParams } = require('../lib/validation');

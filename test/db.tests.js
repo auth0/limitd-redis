@@ -1338,14 +1338,11 @@ describe('LimitDBRedis', () => {
             elevated_limits: {
               size: 5,
               per_minute: 1,
-              elevated_limits: {
-                size: 5,
-                per_minute: 1,
-                interval: 10,
-              }
-            });
-            await takeElevatedPromise(erlParams)
-            await takeElevatedPromise(erlParams) // erl activated
+              interval: 10,
+            }
+          });
+          await takeElevatedPromise(erlParams);
+          await takeElevatedPromise(erlParams); // erl activated
         });
 
         describe('when the limit is exceeded for a bucket without erl configuration', async () => {

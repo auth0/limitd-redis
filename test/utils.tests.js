@@ -19,7 +19,6 @@ describe('utils', () => {
         }
       };
       const response = normalizeType(bucket);
-      // eslint-disable-next-line no-unused-vars
       const { elevated_limits, ...rest } = response;
       expect(rest).excluding(['drip_interval', 'overrides', 'overridesMatch', 'overridesCache']).to.deep.equal({
         size: 100,

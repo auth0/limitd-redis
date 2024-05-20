@@ -2,6 +2,7 @@
 const assert = require('chai').assert;
 
 const { validateParams, validateERLParams } = require('../lib/validation');
+const _ = require('lodash');
 
 describe('validation', () => {
   describe('validateParameters', () => {
@@ -123,83 +124,38 @@ describe('validation', () => {
     });
   });
   describe('validateERLParams', () => {
-    it('should return appropriate keys', () => {
-      const erlParams = {
+    let validParams;
+    beforeEach(() => {
+      validParams = {
         erl_is_active_key: 'erl_is_active_key',
         erl_quota_key: 'erl_quota_key',
         erl_activation_period_seconds: 900,
         erl_quota: 10,
         erl_quota_interval: 'quota_per_calendar_month'
       };
+    });
 
-      const result = validateERLParams(erlParams);
-
+    it('should return no error for appropriate keys', () => {
+      const result = validateERLParams(validParams);
       assert.isUndefined(result);
     });
-    it('should return erl_is_active_key is required for elevated limits if not provided', () => {
-      const erlParams = {
-        erl_quota_key: 'erl_quota_key',
-        erl_activation_period_seconds: 900,
-        erl_quota: 10,
-        erl_quota_interval: 'quota_per_calendar_month'
-      };
 
-      const result = validateERLParams(erlParams);
-
-      assert.strictEqual(result.message, 'erl_is_active_key is required for elevated limits');
-      assert.deepEqual(result.extra, { code: 108 });
-    });
-    it('should return erl_quota_key is required for elevated limits if not provided', () => {
-      const erlParams = {
-        erl_is_active_key: 'erl_is_active_key',
-        erl_activation_period_seconds: 900,
-        erl_quota: 10,
-        erl_quota_interval: 'quota_per_calendar_month'
-      };
-
-      const result = validateERLParams(erlParams);
-
-      assert.strictEqual(result.message, 'erl_quota_key is required for elevated limits');
-      assert.deepEqual(result.extra, { code: 110 });
-    });
-    it('should return erl_activation_period_seconds is required for elevated limits if not provided', () => {
-      const erlParams = {
-        erl_is_active_key: 'erl_is_active_key',
-        erl_quota_key: 'erl_quota_key',
-        erl_quota: 10,
-        erl_quota_interval: 'quota_per_calendar_month'
-      };
-
-      const result = validateERLParams(erlParams);
-
-      assert.strictEqual(result.message, 'erl_activation_period_seconds is required for elevated limits');
-      assert.deepEqual(result.extra, { code: 111 });
-    });
-    it('should return a valid quota amount per interval is required for elevated limits if erl_quota_interval is not present', () => {
-      const erlParams = {
-        erl_is_active_key: 'erl_is_active_key',
-        erl_quota_key: 'erl_quota_key',
-        erl_activation_period_seconds: 900,
-        erl_quota: 10,
-      };
-
-      const result = validateERLParams(erlParams);
-
-      assert.strictEqual(result.message, 'a valid quota amount per interval is required for elevated limits');
-      assert.deepEqual(result.extra, { code: 112 });
-    });
-    it('should return a valid quota amount per interval is required for elevated limits if erl_quota is not present', () => {
-      const erlParams = {
-        erl_is_active_key: 'erl_is_active_key',
-        erl_quota_key: 'erl_quota_key',
-        erl_activation_period_seconds: 900,
-        erl_quota_interval: 'quota_per_calendar_month',
-      };
-
-      const result = validateERLParams(erlParams);
-
-      assert.strictEqual(result.message, 'a valid quota amount per interval is required for elevated limits');
-      assert.deepEqual(result.extra, { code: 112 });
+    describe('when providing invalid parameters', () => {
+      const missingParamsCases = [
+        { missingParam: 'erl_is_active_key', code: 108, message: 'erl_is_active_key is required for elevated limits' },
+        { missingParam: 'erl_quota_key', code: 110, message: 'erl_quota_key is required for elevated limits' },
+        { missingParam: 'erl_activation_period_seconds', code: 111, message: 'erl_activation_period_seconds is required for elevated limits' },
+        { missingParam: 'erl_quota', code: 112, message: 'a valid quota amount per interval is required for elevated limits' },
+        { missingParam: 'erl_quota_interval', code: 112, message: 'a valid quota amount per interval is required for elevated limits' }
+      ];
+      missingParamsCases.forEach(testcase => {
+        it(`should return ${testcase.message} if ${testcase.missingParam} is not provided`, () => {
+          const invalidParams = _.omit(validParams, testcase.missingParam);
+          const result = validateERLParams(invalidParams);
+          assert.strictEqual(result.message, testcase.message);
+          assert.deepEqual(result.extra, { code: testcase.code });
+        });
+      });
     });
   });
 });

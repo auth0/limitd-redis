@@ -1,6 +1,7 @@
 const assert = require('chai').assert;
 
-const { validateParams } = require('../lib/validation');
+const { validateParams, validateERLParams } = require('../lib/validation');
+const _ = require('lodash');
 
 describe('validation', () => {
   describe('validateParameters', () => {
@@ -117,6 +118,41 @@ describe('validation', () => {
         it(`Should not cause a validation error for ${testcase.name}`, () => {
           const result = validateParams(testcase.params, buckets);
           assert.isUndefined(result);
+        });
+      });
+    });
+  });
+  describe('validateERLParams', () => {
+    let validParams;
+    beforeEach(() => {
+      validParams = {
+        erl_is_active_key: 'erl_is_active_key',
+        erl_quota_key: 'erl_quota_key',
+        erl_activation_period_seconds: 900,
+        erl_quota: 10,
+        erl_quota_interval: 'quota_per_calendar_month'
+      };
+    });
+
+    it('should return no error for appropriate keys', () => {
+      const result = validateERLParams(validParams);
+      assert.isUndefined(result);
+    });
+
+    describe('when providing invalid parameters', () => {
+      const missingParamsCases = [
+        { missingParam: 'erl_is_active_key', code: 108, message: 'erl_is_active_key is required for elevated limits' },
+        { missingParam: 'erl_quota_key', code: 110, message: 'erl_quota_key is required for elevated limits' },
+        { missingParam: 'erl_activation_period_seconds', code: 111, message: 'erl_activation_period_seconds is required for elevated limits' },
+        { missingParam: 'erl_quota', code: 112, message: 'a valid quota amount per interval is required for elevated limits' },
+        { missingParam: 'erl_quota_interval', code: 112, message: 'a valid quota amount per interval is required for elevated limits' }
+      ];
+      missingParamsCases.forEach(testcase => {
+        it(`should return ${testcase.message} if ${testcase.missingParam} is not provided`, () => {
+          const invalidParams = _.omit(validParams, testcase.missingParam);
+          const result = validateERLParams(invalidParams);
+          assert.strictEqual(result.message, testcase.message);
+          assert.deepEqual(result.extra, { code: testcase.code });
         });
       });
     });

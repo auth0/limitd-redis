@@ -1,5 +1,3 @@
-/* eslint-env node, mocha */
-//const assert = require('chai').assert;
 const chai = require('chai');
 const chaiExclude = require('chai-exclude');
 chai.use(chaiExclude);
@@ -21,8 +19,8 @@ describe('utils', () => {
         }
       };
       const response = normalizeType(bucket);
-      const { elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
-      expect(rest).excluding('drip_interval').to.deep.equal({
+      const { elevated_limits, ...rest } = response;
+      expect(rest).excluding(['drip_interval', 'overrides', 'overridesMatch', 'overridesCache']).to.deep.equal({
         size: 100,
         interval: 1000,
         per_interval: 100,
@@ -46,8 +44,8 @@ describe('utils', () => {
         per_second: 100,
       };
       const response = normalizeType(bucket);
-      const { elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
-      expect(rest).excluding('drip_interval').to.deep.equal({
+      const { elevated_limits, ...rest } = response;
+      expect(rest).excluding(['drip_interval', 'overrides', 'overridesMatch']).to.deep.equal({
         size: 100,
         interval: 1000,
         per_interval: 100,
@@ -83,7 +81,7 @@ describe('utils', () => {
         }
       };
       const response = normalizeType(bucket);
-      const { elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
+      const { overrides } = response;
       expect(overrides['127.0.0.1']).to.not.be.null;
       expect(overrides['127.0.0.1']).excluding('drip_interval').excluding('elevated_limits').to.deep.equal({
         size: 200,
@@ -91,7 +89,7 @@ describe('utils', () => {
         per_interval: 200,
         ttl: 1,
         ms_per_interval: 0.2,
-        name: "127.0.0.1",
+        name: '127.0.0.1',
         until: undefined
       });
       expect(overrides['127.0.0.1'].elevated_limits).excluding('drip_interval').to.deep.equal({

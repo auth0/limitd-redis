@@ -30,7 +30,7 @@ describe('cb(callback)', function() {
   });
 
   it('shouldn\'t mess with errors', function(done) {
-    invokeAsyncError(cb(function(err, res) {
+    invokeAsyncError(cb(function(err) {
       assert(err);
       done();
     }));
@@ -38,7 +38,7 @@ describe('cb(callback)', function() {
 
   it('should allow multiple executions', function(done) {
     var count = 0;
-    invokeAsyncTwice(cb(function(err, res) {
+    invokeAsyncTwice(cb(function() {
       count++;
       if (count === 2) done();
     }));
@@ -56,14 +56,14 @@ describe('cb(callback).timeout(ms)', function() {
   });
 
   it('should complete with an error after timeout period', function(done) {
-    invokeAsync(cb(function(err, res) {
+    invokeAsync(cb(function(err) {
       assert(err);
       done();
     }).timeout(50));
   });
 
   it('error resulting from a timeout should be instanceof cb.TimeoutError', function(done) {
-    invokeAsync(cb(function(err, res) {
+    invokeAsync(cb(function(err) {
       assert(err instanceof cb.TimeoutError);
       done();
     }).timeout(50));
@@ -80,7 +80,7 @@ describe('cb(callback).error(errback)', function() {
   });
 
   it('should pass errors to provided errback', function(done) {
-    invokeAsyncError(cb(function(res) {
+    invokeAsyncError(cb(function() {
       throw new Error('should not be invoked');
     }).error(function(err) {
       assert(err);
@@ -100,7 +100,7 @@ describe('cb(callback).error(errback).timeout(ms)', function() {
   });
 
   it('should pass timeout error to provided errback', function(done) {
-    invokeAsyncError(cb(function(res) {
+    invokeAsyncError(cb(function() {
       throw new Error('should not be invoked');
     }).error(function(err) {
       assert(err);
@@ -114,7 +114,7 @@ describe('cb(callback).once()', function() {
 
   it('should allow multiple executions', function(done) {
     var count = 0;
-    invokeAsyncTwice(cb(function(err, res) {
+    invokeAsyncTwice(cb(function() {
       count++;
       assert.notEqual(count, 2);
       setTimeout(done, 100);

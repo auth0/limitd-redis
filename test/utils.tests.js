@@ -155,7 +155,7 @@ describe('utils', () => {
   });
 
   describe('resolveElevatedParams', () => {
-    it('should return default keys when bucketKeyConfig does not have elevated limits', () => {
+    describe('when bucketKeyConfig does not have elevated limits', () => {
       const erlParams = {
         erl_is_active_key: 'erl_is_active_key',
         erl_quota_key: 'erl_quota_key',
@@ -171,17 +171,20 @@ describe('utils', () => {
         ms_per_interval: 0.000016666666666666667,
         drip_interval: 60000
       };
-      const result = resolveElevatedParams(erlParams, bucketKeyConfig);
-      assert.equal(result.ms_per_interval, bucketKeyConfig.ms_per_interval);
-      assert.equal(result.size, bucketKeyConfig.size);
-      assert.equal(result.erl_activation_period_seconds, erlParams.erl_activation_period_seconds);
-      assert.equal(result.erl_quota, erlParams.erl_quota);
-      assert.equal(result.erl_quota_interval, erlParams.erl_quota_interval);
-      assert.equal(result.erl_is_active_key, erlParams.erl_is_active_key);
-      assert.equal(result.erl_quota_key, erlParams.erl_quota_key);
-      assert.isFalse(result.erl_configured_for_bucket);
+      it('should return erl_configured_for_bucket=false', () => {
+        const result = resolveElevatedParams(erlParams, bucketKeyConfig);
+        assert.equal(result.ms_per_interval, bucketKeyConfig.ms_per_interval);
+        assert.equal(result.size, bucketKeyConfig.size);
+        assert.equal(result.erl_activation_period_seconds, erlParams.erl_activation_period_seconds);
+        assert.equal(result.erl_quota, erlParams.erl_quota);
+        assert.equal(result.erl_quota_interval, erlParams.erl_quota_interval);
+        assert.equal(result.erl_is_active_key, erlParams.erl_is_active_key);
+        assert.equal(result.erl_quota_key, erlParams.erl_quota_key);
+        assert.isFalse(result.erl_configured_for_bucket);
+      });
     });
-    it('should return default keys when erlParams is undefined', () => {
+
+    describe('when erlParams is undefined', () => {
       const erlParams = undefined;
       const bucketKeyConfig = {
         size: 1,
@@ -191,17 +194,19 @@ describe('utils', () => {
         ms_per_interval: 0.000016666666666666667,
         drip_interval: 60000
       };
-      const result = resolveElevatedParams(erlParams, bucketKeyConfig);
-      assert.equal(result.ms_per_interval, bucketKeyConfig.ms_per_interval);
-      assert.equal(result.size, bucketKeyConfig.size);
-      assert.equal(result.erl_activation_period_seconds, 0);
-      assert.equal(result.erl_quota, 0);
-      assert.equal(result.erl_quota_interval, 'quota_per_calendar_month');
-      assert.equal(result.erl_is_active_key, 'defaultActiveKey');
-      assert.equal(result.erl_quota_key, 'defaultQuotaKey');
-      assert.isFalse(result.erl_configured_for_bucket);
+      it('should return default ERL keys and erl_configured_for_bucket=false', () => {
+        const result = resolveElevatedParams(erlParams, bucketKeyConfig);
+        assert.equal(result.ms_per_interval, bucketKeyConfig.ms_per_interval);
+        assert.equal(result.size, bucketKeyConfig.size);
+        assert.equal(result.erl_activation_period_seconds, 0);
+        assert.equal(result.erl_quota, 0);
+        assert.equal(result.erl_quota_interval, 'quota_per_calendar_month');
+        assert.equal(result.erl_is_active_key, 'defaultActiveKey');
+        assert.equal(result.erl_quota_key, 'defaultQuotaKey');
+        assert.isFalse(result.erl_configured_for_bucket);
+      });
     });
-    it('should return appropriate keys when erlParam and bucketKeyConfig contain valid ERL values', () => {
+    describe('when bucketKeyConfig has elevated limits and erlParams are provided', () => {
       const erlParams = {
         erl_is_active_key: 'erl_is_active_key',
         erl_quota_key: 'erl_quota_key',
@@ -226,19 +231,22 @@ describe('utils', () => {
           erl_configured_for_bucket: true,
         }
       };
-      const result = resolveElevatedParams(erlParams, bucketKeyConfig);
-      assert.equal(result.ms_per_interval, bucketKeyConfig.elevated_limits.ms_per_interval);
-      assert.equal(result.size, bucketKeyConfig.elevated_limits.size);
-      assert.equal(result.interval, bucketKeyConfig.elevated_limits.interval);
-      assert.equal(result.per_interval, bucketKeyConfig.elevated_limits.per_interval);
-      assert.equal(result.ttl, bucketKeyConfig.elevated_limits.ttl);
-      assert.equal(result.drip_interval, bucketKeyConfig.elevated_limits.drip_interval);
-      assert.equal(result.erl_activation_period_seconds, erlParams.erl_activation_period_seconds);
-      assert.equal(result.erl_quota, erlParams.erl_quota);
-      assert.equal(result.erl_quota_interval, erlParams.erl_quota_interval);
-      assert.equal(result.erl_is_active_key, erlParams.erl_is_active_key);
-      assert.equal(result.erl_quota_key, erlParams.erl_quota_key);
-      assert.equal(result.erl_configured_for_bucket, true);
+      it('should return appropriate keys and indicate erl_configured_for_bucket=true', () => {
+        const result = resolveElevatedParams(erlParams, bucketKeyConfig);
+        assert.equal(result.ms_per_interval, bucketKeyConfig.elevated_limits.ms_per_interval);
+        assert.equal(result.size, bucketKeyConfig.elevated_limits.size);
+        assert.equal(result.interval, bucketKeyConfig.elevated_limits.interval);
+        assert.equal(result.per_interval, bucketKeyConfig.elevated_limits.per_interval);
+        assert.equal(result.ttl, bucketKeyConfig.elevated_limits.ttl);
+        assert.equal(result.drip_interval, bucketKeyConfig.elevated_limits.drip_interval);
+        assert.equal(result.erl_activation_period_seconds, erlParams.erl_activation_period_seconds);
+        assert.equal(result.erl_quota, erlParams.erl_quota);
+        assert.equal(result.erl_quota_interval, erlParams.erl_quota_interval);
+        assert.equal(result.erl_is_active_key, erlParams.erl_is_active_key);
+        assert.equal(result.erl_quota_key, erlParams.erl_quota_key);
+        assert.equal(result.erl_configured_for_bucket, true);
+      });
     });
+
   });
 });

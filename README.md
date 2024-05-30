@@ -113,6 +113,45 @@ overrides: {
 }
 ```
 
+We can also override the elevated_limits configuration:
+```js
+buckets = {
+   ip: {
+      size: 10,
+      per_second: 5,
+      overrides: {
+         'awesome-key': {
+            elevated_limits: {
+               size: 200,
+               per_second: 200,
+            }
+         }
+      }
+   }
+}
+```
+
+If elevated_limits is provided within the override and no size, per_interval, or unlimited is overridden, limitd-redis
+will copy them from the base bucket configuration. Thus, the configuration above after being processed will look like:
+```js
+buckets = {
+   ip: {
+      size: 10,
+      per_second: 5,
+      overrides: {
+         'awesome-key': {
+            size: 10,
+            per_second: 5,
+            elevated_limits: {
+               size: 200,
+               per_second: 200,
+            }
+         }
+      }
+   }
+}
+```
+
 ## ERL (Elevated Rate Limits)
 ### Prerequisites
 Redis 6.2+ is required to use ERL.

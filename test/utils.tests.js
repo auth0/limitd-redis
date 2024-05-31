@@ -85,7 +85,7 @@ describe('utils', () => {
         const response = normalizeType(bucket);
         const { elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
         expect(overrides['127.0.0.1']).to.not.be.null;
-        expect(overrides['127.0.0.1']).excluding('drip_interval').excluding('elevated_limits').to.deep.equal({
+        expect(overrides['127.0.0.1']).excluding(['drip_interval', 'elevated_limits']).to.deep.equal({
           size: 200,
           interval: 1000,
           per_interval: 200,
@@ -126,7 +126,7 @@ describe('utils', () => {
         const response = normalizeType(bucket);
         const { elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
         expect(overrides['127.0.0.1']).to.not.be.null;
-        expect(overrides['127.0.0.1']).excluding('drip_interval').excluding('elevated_limits').to.deep.equal({
+        expect(overrides['127.0.0.1']).excluding(['drip_interval', 'elevated_limits']).to.deep.equal({
           size: 100,
           interval: 1000,
           per_interval: 100,

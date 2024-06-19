@@ -202,9 +202,9 @@ describe('utils', () => {
 
   describe('resolveElevatedParams', () => {
     const erlIsActiveKey = 'erl_is_active_key';
-    const defaultERLIsActiveKey = 'defaultActiveKey';
+    const defaultERLIsActiveKey = 'ERLActiveKey';
     const erlQuotaKey = 'erl_quota_key';
-    const defaultERLQuotaKey = 'defaultQuotaKey';
+    const defaultERLQuotaKey = 'ERLQuotaKey';
     const mainBucketKey = 'bucketname:somekey'
     const hashedERLIsActiveKey = erlIsActiveKey+`:{${mainBucketKey}}`
     const hashedERLQuotaKey = erlQuotaKey+`:{${mainBucketKey}}`
@@ -306,7 +306,7 @@ describe('utils', () => {
 
   describe('replicateHashtag', () => {
     const bucketName = 'bucketname';
-    const key = 'key';
+    const key = 'some-key';
     const elevatedBucketName = 'elevatedBucketName';
 
     describe('when no hashtag included in base key', () => {

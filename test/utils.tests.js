@@ -314,7 +314,7 @@ describe('utils', () => {
       it('it should use the entire basekey as hashtag', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
-      })
+      });
     });
 
     describe('when hashtags included in base key', () => {
@@ -322,7 +322,7 @@ describe('utils', () => {
       it('it should use the hashtags included in basekey', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{${key}}`);
-      })
+      });
     });
 
     describe('when only left curly brace is provided within baseKey', () => {
@@ -330,7 +330,7 @@ describe('utils', () => {
       it('it should use the entire basekey as hashtag', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
-      })
+      });
     });
 
     describe('when only right curly brace is provided within baseKey', () => {
@@ -338,7 +338,7 @@ describe('utils', () => {
       it('it should use the entire basekey as hashtag', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
-      })
+      });
     });
 
     describe('when right curly brace is before left curly brace', () => {
@@ -346,7 +346,12 @@ describe('utils', () => {
       it('it should use the entire basekey as hashtag', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
-      })
+      });
+      const shortKey = `${bucketName}:a}{b`;
+      it('it should use the entire basekey as hashtag', () => {
+        const result = replicateHashtag(shortKey, elevatedBucketName);
+        assert.equal(result, `${elevatedBucketName}:{${shortKey}}`);
+      });
     });
 
     describe('when multiple hashtags exist', () => {
@@ -354,7 +359,7 @@ describe('utils', () => {
       it('it should use the first one', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{${key}}`);
-      })
+      });
     });
 
     describe('when there is a right curly brace before the hashtag', () => {
@@ -362,7 +367,7 @@ describe('utils', () => {
       it('it should not affect and use the hashtag within the key', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{${key}}`);
-      })
+      });
     });
 
     describe('when an empty hashtag is provided', () => {
@@ -378,7 +383,7 @@ describe('utils', () => {
       it('it should use the substring "{key" the hashtag', () => {
         const result = replicateHashtag(baseKey, elevatedBucketName);
         assert.equal(result, `${elevatedBucketName}:{{${key}}`);
-      })
+      });
     });
   })
 });

@@ -179,8 +179,6 @@ describe('LimitDBRedis', () => {
         take: (params, callback) => db.takeElevated(params, callback),
         params: {
           elevated_limits: {
-            erl_is_active_key: 'some_erl_active_identifier',
-            erl_quota_key: 'erlquotakey',
             erl_activation_period_seconds: 900,
             quota_per_calendar_month: 10,
           }
@@ -192,8 +190,6 @@ describe('LimitDBRedis', () => {
         take: (params, callback) => db.takeElevated(params, callback),
         params: {
           elevated_limits: {
-            erl_is_active_key: 'some_erl_active_identifier',
-            erl_quota_key: 'erlquotakey',
             erl_activation_period_seconds: 900,
             quota_per_calendar_month: 10,
           }
@@ -934,7 +930,7 @@ describe('LimitDBRedis', () => {
           done(err);
         });
       });
-      it('should raise an error if elevated_limits.erl_is_active_key is not provided for a bucket with elevated_limits configuration', (done) => {
+      it('should NOT raise an error if elevated_limits.erl_is_active_key is not provided for a bucket with elevated_limits configuration', (done) => {
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -950,11 +946,11 @@ describe('LimitDBRedis', () => {
         };
 
         db.takeElevated(params, (err) => {
-          assert.match(err.message, /erl_is_active_key is required for elevated limits/);
+          assert.isNull(err);
           done();
         });
       });
-      it('should raise an error if elevated_limits.erl_quota_key is not provided for a bucket with elevated_limits configuration', (done) => {
+      it('should NOT raise an error if elevated_limits.erl_quota_key is not provided for a bucket with elevated_limits configuration', (done) => {
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -970,7 +966,7 @@ describe('LimitDBRedis', () => {
         };
 
         db.takeElevated(params, (err) => {
-          assert.match(err.message, /erl_quota_key is required for elevated limits/);
+          assert.isNull(err);
           done();
         });
       });

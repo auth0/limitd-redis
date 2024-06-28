@@ -142,8 +142,6 @@ describe('validation', () => {
 
     describe('when providing invalid parameters', () => {
       const missingParamsCases = [
-        { missingParam: 'erl_is_active_key', code: 108, message: 'erl_is_active_key is required for elevated limits' },
-        { missingParam: 'erl_quota_key', code: 110, message: 'erl_quota_key is required for elevated limits' },
         { missingParam: 'erl_activation_period_seconds', code: 111, message: 'erl_activation_period_seconds is required for elevated limits' },
         { missingParam: 'erl_quota', code: 112, message: 'a valid quota amount per interval is required for elevated limits' },
         { missingParam: 'erl_quota_interval', code: 112, message: 'a valid quota amount per interval is required for elevated limits' }

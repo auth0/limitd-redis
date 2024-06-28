@@ -6,7 +6,7 @@ const LimitDB = require('../lib/db');
 const assert = require('chai').assert;
 const { Toxiproxy, Toxic } = require('toxiproxy-node-client');
 const crypto = require('crypto');
-const { endOfMonthTimestamp } = require('../lib/utils');
+const { endOfMonthTimestamp, replicateHashtag } = require('../lib/utils');
 
 const buckets = {
   ip: {
@@ -114,9 +114,10 @@ const elevatedBuckets = {
 
 describe('LimitDBRedis', () => {
   let db;
+  const prefix = 'tests:'
 
   beforeEach((done) => {
-    db = new LimitDB({ uri: 'localhost', buckets, prefix: 'tests:' });
+    db = new LimitDB({ uri: 'localhost', buckets, prefix: prefix });
     db.once('error', done);
     db.once('ready', () => {
       db.resetAll(done);
@@ -179,8 +180,6 @@ describe('LimitDBRedis', () => {
         take: (params, callback) => db.takeElevated(params, callback),
         params: {
           elevated_limits: {
-            erl_is_active_key: 'some_erl_active_identifier',
-            erl_quota_key: 'erlquotakey',
             erl_activation_period_seconds: 900,
             quota_per_calendar_month: 10,
           }
@@ -192,8 +191,6 @@ describe('LimitDBRedis', () => {
         take: (params, callback) => db.takeElevated(params, callback),
         params: {
           elevated_limits: {
-            erl_is_active_key: 'some_erl_active_identifier',
-            erl_quota_key: 'erlquotakey',
             erl_activation_period_seconds: 900,
             quota_per_calendar_month: 10,
           }
@@ -862,9 +859,12 @@ describe('LimitDBRedis', () => {
         });
       });
 
+      const bucketName = 'bucket_with_elevated_limits_config';
+      const key = 'some_key';
+      const erl_is_active_key = 'some_erl_active_identifier';
+      const erl_quota_key = 'erlquotakey';
+
       it('should set a key at erl_is_active_key when erl is activated for a bucket with elevated_limits configuration', async () => {
-        const bucketName = 'bucket_with_elevated_limits_config';
-        const erl_is_active_key = 'some_erl_active_identifier';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -875,37 +875,38 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
+
+        const hashtaggedERLIsActiveKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_is_active_key)
 
         // erl not activated yet
         await takeElevatedPromise(params);
-        await redisExistsPromise(erl_is_active_key).then((isActive) => assert.equal(isActive, 0));
+        await redisExistsPromise(hashtaggedERLIsActiveKey).then((isActive) => assert.equal(isActive, 0));
 
         // erl now activated
         await takeElevatedPromise(params);
-        await redisExistsPromise(erl_is_active_key).then((isActive) => assert.equal(isActive, 1));
+        await redisExistsPromise(hashtaggedERLIsActiveKey).then((isActive) => assert.equal(isActive, 1));
       });
       it('should return erl_active=false when erl is activated for the given key but the bucket has no elevated_limits configuration', async () => {
-        const bucketName = 'bucket_with_elevated_limits_config';
-        const erl_is_active_key = 'some_erl_active_identifier';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
         });
         const params = {
           type: bucketName,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
+        const hashtaggedERLIsActiveKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_is_active_key)
         // erl not activated yet
         await takeElevatedPromise(params);
-        await redisExistsPromise(erl_is_active_key).then((isActive) => assert.equal(isActive, 0));
+        await redisExistsPromise(hashtaggedERLIsActiveKey).then((isActive) => assert.equal(isActive, 0));
 
         // activate ERL manually (simulates other call activated it)
-        await redisSetPromise(erl_is_active_key, 1);
+        await redisSetPromise(hashtaggedERLIsActiveKey, 1);
 
         // erl now activated, verify call is non-conformant and erl_active=false
         await takeElevatedPromise(params).then((result) => {
@@ -930,8 +931,7 @@ describe('LimitDBRedis', () => {
           done(err);
         });
       });
-      it('should raise an error if elevated_limits.erl_is_active_key is not provided for a bucket with elevated_limits configuration', (done) => {
-        const bucketName = 'bucket_with_elevated_limits_config';
+      it('should NOT raise an error if elevated_limits.erl_is_active_key is not provided for a bucket with elevated_limits configuration', (done) => {
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -942,17 +942,16 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_bucket_key',
-          elevated_limits: { erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         db.takeElevated(params, (err) => {
-          assert.match(err.message, /erl_is_active_key is required for elevated limits/);
+          assert.isNull(err);
           done();
         });
       });
-      it('should raise an error if elevated_limits.erl_quota_key is not provided for a bucket with elevated_limits configuration', (done) => {
-        const bucketName = 'bucket_with_elevated_limits_config';
+      it('should NOT raise an error if elevated_limits.erl_quota_key is not provided for a bucket with elevated_limits configuration', (done) => {
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -963,17 +962,16 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_bucket_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         db.takeElevated(params, (err) => {
-          assert.match(err.message, /erl_quota_key is required for elevated limits/);
+          assert.isNull(err);
           done();
         });
       });
       it('should raise an error if elevated_limits.erl_activation_period_seconds is not provided for a bucket with elevated_limits configuration', (done) => {
-        const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -984,8 +982,8 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_bucket_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, quota_per_calendar_month: 10 },
         };
 
         db.takeElevated(params, (err) => {
@@ -994,7 +992,6 @@ describe('LimitDBRedis', () => {
         });
       });
       it('should raise an error if elevated_limits.quota_per_calendar_month is not provided for a bucket with elevated_limits configuration', (done) => {
-        const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -1005,8 +1002,8 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_bucket_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900 },
         };
 
         db.takeElevated(params, (err) => {
@@ -1015,7 +1012,6 @@ describe('LimitDBRedis', () => {
         });
       });
       it('should apply erl limits if normal rate limits are exceeded', async () => {
-        const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -1026,8 +1022,8 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_bucket_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         // first call, still within normal rate limits
@@ -1047,7 +1043,6 @@ describe('LimitDBRedis', () => {
 
       });
       it('should rate limit if both normal and erl rate limit are exceeded', async () => {
-        const bucketName = 'bucket_with_elevated_limits_config';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -1058,8 +1053,8 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_bucket_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         // first call, still within normal rate limits
@@ -1089,7 +1084,6 @@ describe('LimitDBRedis', () => {
         });
       });
       it('should deduct already used tokens from new bucket when erl is activated', async () => {
-        const bucketName = 'test-bucket';
         await db.configurateBucket(bucketName, {
           size: 2,
           per_minute: 1,
@@ -1100,8 +1094,8 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_key ',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         await takeElevatedPromise(params);
@@ -1115,7 +1109,6 @@ describe('LimitDBRedis', () => {
         });
       });
       it('should use ttl calculated using erl activation period if erl activation period is configured', (done) => {
-        const bucketName = 'test-bucket';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -1126,19 +1119,20 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 1200, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 1200, quota_per_calendar_month: 10 },
         };
+
+        const hashtaggedERLIsActiveKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_is_active_key)
 
         takeElevatedPromise(params)
           .then(() => takeElevatedPromise(params))
-          .then(() => db.redis.ttl('some_erl_active_identifier', (err, ttl) => {
+          .then(() => db.redis.ttl(hashtaggedERLIsActiveKey, (err, ttl) => {
             assert.equal(ttl, 1200); // 20 minutes in seconds
             done();
           }));
       });
       it('should refill with erl refill rate when erl is active', (done) => {
-        const bucketName = 'test-bucket';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -1150,8 +1144,8 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_key ',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         takeElevatedPromise(params)
@@ -1168,7 +1162,6 @@ describe('LimitDBRedis', () => {
           });
       });
       it('should go back to standard bucket size and refill rate when we stop using takeElevated', (done) => {
-        const bucketName = 'test-bucket';
         db.configurateBucket(bucketName, {
           size: 1,
           per_interval: 1,
@@ -1181,8 +1174,8 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         // first call to take a token
@@ -1232,7 +1225,6 @@ describe('LimitDBRedis', () => {
       });
 
       it("should exhaust all monthly erl quota before rate limiting", (done) => {
-        const bucketName = 'test-bucket';
         db.configurateBucket(bucketName, {
           size: 1,
           per_minute: 1,
@@ -1243,9 +1235,12 @@ describe('LimitDBRedis', () => {
         });
         const params = {
           type: bucketName,
-          key: 'some_key ',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 1 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 1 },
         };
+
+        const hashtaggedERLIsActiveKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_is_active_key)
+        const hashtaggedERLQuotaKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_quota_key)
 
         // check erl not activated yet
         redisExistsPromise(params.elevated_limits.erl_is_active_key)
@@ -1274,10 +1269,10 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.elevated_limits.triggered);
               assert.equal(result.limit, 3);
             })
-            .then(() => redisExistsPromise(params.elevated_limits.erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota was increased
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
             // exhaust the bucket
             .then(() => takeElevatedPromise(params))
@@ -1287,10 +1282,10 @@ describe('LimitDBRedis', () => {
               assert.isFalse(result.elevated_limits.triggered);
               assert.equal(result.limit, 3);
             })
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLIsActiveKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
             // remove erl_is_active_key to stop ERL
-            .then(() => redisDeletePromise(params.elevated_limits.erl_is_active_key))
+            .then(() => redisDeletePromise(hashtaggedERLIsActiveKey))
             // next takeElevated should not activate ERL
             .then(() => takeElevatedPromise(params))
             .then((result) => {
@@ -1300,10 +1295,10 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket);
               assert.equal(result.limit, 1);
             })
-            .then(() => redisExistsPromise(params.elevated_limits.erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // check erlQuota was NOT increased
-            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisExistsPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
             .then(() => done());
       });
@@ -1311,20 +1306,22 @@ describe('LimitDBRedis', () => {
       describe('when erl is activated for the tenant with multiple bucket configurations', () => {
         const nonERLTestBucket = 'nonerl-test-bucket';
         const ERLBucketName = 'erl-test-bucket';
+        const otherERLActiveKey = 'other_erl_key';
+        const otherQuotaKey = 'other_quota_key'
         const erlParams = {
           type: ERLBucketName,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
         const otherErlParams = {
           type: ERLBucketName,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: 'other_erl_key', erl_quota_key: 'other_quota_key', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: otherERLActiveKey, erl_quota_key: otherQuotaKey, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
         const nonErlParams = {
           type: nonERLTestBucket,
-          key: 'some_key',
-          elevated_limits: { erl_is_active_key: 'some_erl_active_identifier', erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+          key: key,
+          elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
         };
 
         beforeEach(async () => {
@@ -1354,7 +1351,8 @@ describe('LimitDBRedis', () => {
 
         describe('when the limit is exceeded for a bucket with erl configuration', () => {
           it('should use ERL to take from the bucket if the given erl_is_active_key is set in Redis ', async () => {
-            const activeKey = await redisExistsPromise(erlParams.elevated_limits.erl_is_active_key)
+            const hashtaggedERLIsActiveKey = replicateHashtag(`${ERLBucketName}:${key}`, prefix, erl_is_active_key)
+            const activeKey = await redisExistsPromise(hashtaggedERLIsActiveKey)
             assert.equal(activeKey, 1)
             await takeElevatedPromise(erlParams)
             const result = await takeElevatedPromise(erlParams);
@@ -1363,9 +1361,11 @@ describe('LimitDBRedis', () => {
             assert.equal(result.limit, 5);
           });
           it('should NOT use ERL to take from the bucket if the given erl_is_active_key is NOT set in Redis', async() => {
-            const activeKey = await redisExistsPromise(erlParams.elevated_limits.erl_is_active_key)
+            const hashtaggedERLIsActiveKey = replicateHashtag(`${ERLBucketName}:${key}`, prefix, erl_is_active_key)
+            const hashedERLOtherIsActiveKey = replicateHashtag(`${ERLBucketName}:${key}`, prefix, otherERLActiveKey)
+            const activeKey = await redisExistsPromise(hashtaggedERLIsActiveKey)
             assert.equal(activeKey, 1)
-            const inactiveKey = await redisExistsPromise(otherErlParams.elevated_limits.erl_is_active_key)
+            const inactiveKey = await redisExistsPromise(hashedERLOtherIsActiveKey)
             assert.equal(inactiveKey, 0)
             const result = await takeElevatedPromise(otherErlParams);
             assert.isTrue(result.conformant);
@@ -1391,10 +1391,11 @@ describe('LimitDBRedis', () => {
           };
           const params = {
             type: bucketName,
-            key: 'some_key',
-            elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+            key: key,
+            elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
             configOverride
           };
+          const hashtaggedERLIsActiveKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_is_active_key)
           takeElevatedPromise(params)
             .then((result) => {
               assert.isTrue(result.conformant);
@@ -1415,7 +1416,7 @@ describe('LimitDBRedis', () => {
             .then(() => takeElevatedPromise(params))
             .then((result) => {
               assert.isFalse(result.conformant);
-              db.redis.ttl(erl_is_active_key, (err, ttl) => {
+              db.redis.ttl(hashtaggedERLIsActiveKey, (err, ttl) => {
                 assert.equal(ttl, 900);
                 done();
               });
@@ -1466,13 +1467,11 @@ describe('LimitDBRedis', () => {
           ]
           tests.forEach((test) => {
             it(test.name, (done) => {
-              const bucketName = 'bucket_with_no_elevated_limits_config';
-              const erl_is_active_key = 'some_erl_active_identifier';
               db.configurateBucket(bucketName, test.bucketConfig);
               const params = {
                 type: bucketName,
-                key: 'some_key',
-                elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
+                key: key,
+                elevated_limits: { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 10 },
                 configOverride: test.configOverride,
               };
               redisSetPromise(erl_is_active_key, 1)
@@ -1505,12 +1504,10 @@ describe('LimitDBRedis', () => {
 
       // erlquota tests
       describe('erlQuota tests', () => {
-        const bucketName = 'bucket_for_erl_testing';
-        const erl_is_active_key = 'some_erl_active_identifier';
         const quota_per_calendar_month = 10;
         const params = {
           type: bucketName,
-          key: 'some_key',
+          key: key,
         };
         beforeEach(() => {
           db.configurateBucket(bucketName, {
@@ -1522,9 +1519,11 @@ describe('LimitDBRedis', () => {
             }
           });
         });
+        const hashtaggedERLIsActiveKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_is_active_key)
+        const hashtaggedERLQuotaKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_quota_key)
 
         it('should return quota_remaining = quota_per_calendar_month-1, quota_allocated and erl_activation_period_seconds when ERL is triggered for the first time in the month', (done) => {
-          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
 
           // check erl not activated yet
           redisExistsPromise(erl_is_active_key)
@@ -1551,11 +1550,11 @@ describe('LimitDBRedis', () => {
         });
 
         it('should return quota_remaining = -1 when ERL had already been activated', (done) => {
-          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
 
           // setup ERL
           redisSetPromise(erl_is_active_key, 1)
-            .then(() => redisSetPromise(params.elevated_limits.erl_quota_key, params.elevated_limits.per_calendar_month - 1))
+            .then(() => redisSetPromise(hashtaggedERLIsActiveKey, params.elevated_limits.per_calendar_month - 1))
             // takeElevated with ERL activated
             .then(() => takeElevatedPromise(params))
             .then((response) => {
@@ -1569,7 +1568,7 @@ describe('LimitDBRedis', () => {
         });
 
         it('should set ttl accordingly on erl_quota_key when we activate ERL', (done) => {
-          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
 
           const eom = endOfMonthTimestamp();
           // get ms between now and eom
@@ -1587,13 +1586,13 @@ describe('LimitDBRedis', () => {
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // next takeElevated should activate ERL
             .then(() => takeElevatedPromise(params))
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota should be decreased by 1
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
             // check ttl on erl_quota_key
-            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisTTLPromise(hashtaggedERLQuotaKey))
             .then((ttl) => assert.closeTo(ttl, expectedTTL, 2))
             .then(() => done());
         });
@@ -1601,7 +1600,7 @@ describe('LimitDBRedis', () => {
         it('should keep ttl on erl_quota_key after increasing it', (done) => {
           params.elevated_limits = {
             erl_is_active_key: erl_is_active_key,
-            erl_quota_key: 'erlquotakey',
+            erl_quota_key: erl_quota_key,
             erl_activation_period_seconds: 900,
             quota_per_calendar_month: quota_per_calendar_month,
           };
@@ -1611,33 +1610,33 @@ describe('LimitDBRedis', () => {
           redisExistsPromise(erl_is_active_key)
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // check erl_quota_key does not exist
-            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key)
+            .then(() => redisExistsPromise(hashtaggedERLQuotaKey)
               .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0)))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // next takeElevated should activate ERL
             .then(() => takeElevatedPromise(params))
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota should be decreased by 1
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
             // check ttl on erl_quota_key
-            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisTTLPromise(hashtaggedERLQuotaKey))
             .then((ttl) => expectedTTL = ttl)
             // stop ERL
-            .then(() => redisDeletePromise(erl_is_active_key))
+            .then(() => redisDeletePromise(hashtaggedERLIsActiveKey))
             // next takeElevated should re-activate ERL
             .then(() => takeElevatedPromise(params))
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota should be decreased by 1
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 2))
             // check erlQuota keeps the TTL
-            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisTTLPromise(hashtaggedERLQuotaKey))
             .then((ttl) => assert.equal(ttl, expectedTTL))
             .then(() => done());
         });
@@ -1647,7 +1646,7 @@ describe('LimitDBRedis', () => {
           // is not interpreted in the script as no quota left for activating ERL
           params.elevated_limits = {
             erl_is_active_key: erl_is_active_key,
-            erl_quota_key: 'erlquotakey',
+            erl_quota_key: erl_quota_key,
             erl_activation_period_seconds: 900,
             quota_per_calendar_month: 10,
           };
@@ -1656,7 +1655,7 @@ describe('LimitDBRedis', () => {
           redisExistsPromise(erl_is_active_key)
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // check erl_quota_key does not exist
-            .then(() => redisExistsPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisExistsPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyExists) => assert.equal(erl_quota_keyExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
@@ -1664,7 +1663,7 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.conformant);
               assert.isFalse(result.elevated_limits.activated);
             })
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // next takeElevated should activate ERL and return conformant
             .then(() => takeElevatedPromise(params))
@@ -1672,10 +1671,10 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.conformant);
               assert.isTrue(result.elevated_limits.activated);
             })
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota should be decreased by 1
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
             .then(() => done());
         });
@@ -1689,7 +1688,7 @@ describe('LimitDBRedis', () => {
               per_second: 2,
             }
           });
-          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: 0 };
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: 0 };
 
           // check erl not activated yet
           redisExistsPromise(erl_is_active_key)
@@ -1724,14 +1723,14 @@ describe('LimitDBRedis', () => {
         });
 
         it('should not activate ERL if erl_quota_key exists and is at its max allowed', (done) => {
-          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
 
           // set erl_quota_key to the given max allowed per month in redis
-          redisSetPromise(params.elevated_limits.erl_quota_key, quota_per_calendar_month)
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+          redisSetPromise(hashtaggedERLQuotaKey, quota_per_calendar_month)
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, quota_per_calendar_month))
             // check erl not activated yet
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
@@ -1741,7 +1740,7 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
               assert.equal(result.limit, 1);
             })
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // next takeElevated should have attempted to activate ERL but failed as quota is at its max allowed
             .then(() => takeElevatedPromise(params))
@@ -1751,25 +1750,25 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
               assert.equal(result.limit, 1);
             })
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // check erlQuota wasn't modified
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, quota_per_calendar_month))
             .then(() => done());
         });
 
         it('should activate ERL when erl_quota_key expires after reaching allowed per month quota', (done) => {
-          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: 'erlquotakey', erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
+          params.elevated_limits = { erl_is_active_key: erl_is_active_key, erl_quota_key: erl_quota_key, erl_activation_period_seconds: 900, quota_per_calendar_month: quota_per_calendar_month };
 
           // set erl_quota_key to given max quota per month in redis
-          redisSetWithExpirePromise(params.elevated_limits.erl_quota_key, quota_per_calendar_month, 1)
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+          redisSetWithExpirePromise(hashtaggedERLQuotaKey, quota_per_calendar_month, 1)
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, quota_per_calendar_month))
-            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisTTLPromise(hashtaggedERLQuotaKey))
             .then((quotaTTL) => assert.equal(quotaTTL, 1))
             // check erl not activated yet
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
             // attempt to take elevated should work for first token
             .then(() => takeElevatedPromise(params))
@@ -1779,7 +1778,7 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
               assert.equal(result.limit, 1);
             })
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // next takeElevated should have attempted to activate ERL but failed as quota is at its max allowed
             .then(() => takeElevatedPromise(params))
@@ -1789,16 +1788,16 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
               assert.equal(result.limit, 1);
             })
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 0))
             // check erlQuota wasn't modified
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, quota_per_calendar_month))
             // wait for a second for erl_quota_key to expire
             .then(() => new Promise((resolve) => setTimeout(resolve, 1000)))
-            .then(() => redisTTLPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisTTLPromise(hashtaggedERLQuotaKey))
             .then((quotaTTL) => assert.isBelow(quotaTTL, 0))
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.isNull(erl_quota_keyValue))
             // next takeElevated should activate ERL and return conformant
             .then(() => takeElevatedPromise(params))
@@ -1808,10 +1807,10 @@ describe('LimitDBRedis', () => {
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
               assert.equal(result.limit, 2);
             })
-            .then(() => redisExistsPromise(erl_is_active_key))
+            .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
             .then((erl_is_active_keyExists) => assert.equal(erl_is_active_keyExists, 1))
             // check erlQuota was increased
-            .then(() => redisGetPromise(params.elevated_limits.erl_quota_key))
+            .then(() => redisGetPromise(hashtaggedERLQuotaKey))
             .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
             .then(() => done());
         });

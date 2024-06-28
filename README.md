@@ -190,7 +190,31 @@ When ERL is triggered, it will keep activated for the `erl_activation_period_sec
 
 The amount of minutes per month allowed in ERL mode is defined by: `quota_per_calendar_month * erl_activation_period_seconds / 60`.
 
-The overrides in ERL work the same way as for the regular bucket. Both size and per_interval are mandatory when specifying an override. 
+The overrides in ERL work the same way as for the regular bucket. Both size and per_interval are mandatory when specifying an override.
+
+### Use of Redis hash tags
+In order to comply with [Redis clustering best practices](https://redis.io/blog/redis-clustering-best-practices-with-keys/) when using multi-key operations,
+we always add a hash tag to both `erl_quota_key` and `erl_is_active_key`, so all keys within the multi-key operation resolve to the same
+hash slot.
+
+In order to do this, we follow [Redis' hash-tag rules](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags) on what to identify as a hash tag.
+
+Basically, what constitutes a hashtag is text within curly braces. e.g. "{tag}".
+
+Additionally, we added 2 extra rules:
+- If either the `type` or `key` arguments provided within the call to the takeElevated method contain a hashtag, we use that one to hash-tag the ERL keys
+- If the previous rule is not met, we use the entire `type:key` as hashtag.
+
+Examples:
+
+| Situation                  | Call                                                          | Identified Hashtag        | main_key                            | erl_is_active_key                        | erl_quota_key                           |
+|----------------------------|---------------------------------------------------------------|---------------------------|-------------------------------------|------------------------------------------|-----------------------------------------|
+| No hashtag provided        | `limitd.takeElevated('bucketName', 'some-key')`               | `bucketName:some-key`     | `bucketName:some-key`               | `ERLActiveKey:{bucketName:some-key}`     | `ERLQuotaKey:{bucketName:some-key}`     |
+| Single hashtag             | `limitd.takeElevated('bucketName', '{some-key}')`             | `some-key`                | `bucketName:{some-key}`             | `ERLActiveKey:{some-key}`                | `ERLQuotaKey:{some-key}`                |
+| Multiple hashtags          | `limitd.takeElevated('bucketName', '{some-key}{anotherkey}')` | `some-key`                | `bucketName:{some-key}{anotherkey}` | `ERLActiveKey:{some-key}`                | `ERLQuotaKey:{some-key}`                |
+| Curly brace within hashtag | `limitd.takeElevated('bucketName', '{{some-key}')`            | `{some-key`               | `bucketName:{{some-key}`            | `ERLActiveKey:{{some-key}`               | `ERLQuotaKey:{{some-key}`               |
+| Empty hashtag              | `limitd.takeElevated('bucketName', '{}{some-key}')`           | `bucketName:{}{some-key}` | `bucketName:{}{some-key}`           | `ERLActiveKey:{bucketName:{}{some-key}}` | `ERLQuotaKey:{bucketName:{}{some-key}}` |
+
 
 ## Breaking changes from `Limitdb`
 

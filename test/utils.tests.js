@@ -206,10 +206,11 @@ describe('utils', () => {
     const erlQuotaKey = 'erl_quota_key';
     const defaultERLQuotaKey = 'ERLQuotaKey';
     const mainBucketKey = 'bucketname:somekey'
-    const hashedERLIsActiveKey = erlIsActiveKey+`:{${mainBucketKey}}`
-    const hashedERLQuotaKey = erlQuotaKey+`:{${mainBucketKey}}`
-    const hashedDefaultERLIsActiveKey = defaultERLIsActiveKey+`:{${mainBucketKey}}`
-    const hashedDefaultERLQuotaKey = defaultERLQuotaKey+`:{${mainBucketKey}}`
+    const prefix = 'prefix:'
+    const hashedERLIsActiveKey = erlIsActiveKey+`:{${prefix}${mainBucketKey}}`
+    const hashedERLQuotaKey = erlQuotaKey+`:{${prefix}${mainBucketKey}}`
+    const hashedDefaultERLIsActiveKey = defaultERLIsActiveKey+`:{${prefix}${mainBucketKey}}`
+    const hashedDefaultERLQuotaKey = defaultERLQuotaKey+`:{${prefix}${mainBucketKey}}`
     describe('when bucketKeyConfig does not have elevated limits', () => {
       const erlParams = {
         erl_is_active_key: erlIsActiveKey,
@@ -227,7 +228,7 @@ describe('utils', () => {
         drip_interval: 60000
       };
       it('should return erl_configured_for_bucket=false', () => {
-        const result = resolveElevatedParams(erlParams, bucketKeyConfig, mainBucketKey);
+        const result = resolveElevatedParams(erlParams, bucketKeyConfig, mainBucketKey, prefix);
         assert.equal(result.ms_per_interval, bucketKeyConfig.ms_per_interval);
         assert.equal(result.size, bucketKeyConfig.size);
         assert.equal(result.erl_activation_period_seconds, erlParams.erl_activation_period_seconds);
@@ -250,7 +251,7 @@ describe('utils', () => {
         drip_interval: 60000
       };
       it('should return default ERL keys and erl_configured_for_bucket=false', () => {
-        const result = resolveElevatedParams(erlParams, bucketKeyConfig, mainBucketKey);
+        const result = resolveElevatedParams(erlParams, bucketKeyConfig, mainBucketKey, prefix);
         assert.equal(result.ms_per_interval, bucketKeyConfig.ms_per_interval);
         assert.equal(result.size, bucketKeyConfig.size);
         assert.equal(result.erl_activation_period_seconds, 0);
@@ -287,7 +288,7 @@ describe('utils', () => {
         }
       };
       it('should return appropriate keys and indicate erl_configured_for_bucket=true', () => {
-        const result = resolveElevatedParams(erlParams, bucketKeyConfig, mainBucketKey);
+        const result = resolveElevatedParams(erlParams, bucketKeyConfig, mainBucketKey, prefix);
         assert.equal(result.ms_per_interval, bucketKeyConfig.elevated_limits.ms_per_interval);
         assert.equal(result.size, bucketKeyConfig.elevated_limits.size);
         assert.equal(result.interval, bucketKeyConfig.elevated_limits.interval);
@@ -305,59 +306,65 @@ describe('utils', () => {
   });
 
   describe('replicateHashtag', () => {
+    const prefix = 'prefix';
     const bucketName = 'bucketname';
     const key = 'some-key';
     const elevatedBucketName = 'elevatedBucketName';
 
     describe('when no hashtag included in base key', () => {
       const baseKey = `${bucketName}:${key}`;
+      const prefixedKey = `${prefix}${baseKey}`;
       it('it should use the entire basekey as hashtag', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
-        assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
+        assert.equal(result, `${elevatedBucketName}:{${prefixedKey}}`);
       });
     });
 
     describe('when hashtags included in base key', () => {
       const baseKey = `${bucketName}:{${key}}`;
       it('it should use the hashtags included in basekey', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
         assert.equal(result, `${elevatedBucketName}:{${key}}`);
       });
     });
 
     describe('when only left curly brace is provided within baseKey', () => {
       const baseKey = `${bucketName}:{${key}`;
+      const prefixedKey = `${prefix}${baseKey}`;
       it('it should use the entire basekey as hashtag', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
-        assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
+        assert.equal(result, `${elevatedBucketName}:{${prefixedKey}}`);
       });
     });
 
     describe('when only right curly brace is provided within baseKey', () => {
       const baseKey = `${bucketName}:${key}}`;
+      const prefixedKey = `${prefix}${baseKey}`;
       it('it should use the entire basekey as hashtag', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
-        assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
+        assert.equal(result, `${elevatedBucketName}:{${prefixedKey}}`);
       });
     });
 
     describe('when right curly brace is before left curly brace', () => {
       const baseKey = `${bucketName}:}${key}{`;
+      const prefixedKey = `${prefix}${baseKey}`;
       it('it should use the entire basekey as hashtag', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
-        assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
+        assert.equal(result, `${elevatedBucketName}:{${prefixedKey}}`);
       });
       const shortKey = `${bucketName}:a}{b`;
+      const prefixedShortKey = `${prefix}${shortKey}`;
       it('it should use the entire basekey as hashtag', () => {
-        const result = replicateHashtag(shortKey, elevatedBucketName);
-        assert.equal(result, `${elevatedBucketName}:{${shortKey}}`);
+        const result = replicateHashtag(shortKey, prefix, elevatedBucketName, prefix);
+        assert.equal(result, `${elevatedBucketName}:{${prefixedShortKey}}`);
       });
     });
 
     describe('when multiple hashtags exist', () => {
       const baseKey = `${bucketName}:{${key}}{anotherHash}`;
       it('it should use the first one', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
         assert.equal(result, `${elevatedBucketName}:{${key}}`);
       });
     });
@@ -365,23 +372,24 @@ describe('utils', () => {
     describe('when there is a right curly brace before the hashtag', () => {
       const baseKey = `${bucketName}}:{${key}}`;
       it('it should not affect and use the hashtag within the key', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
         assert.equal(result, `${elevatedBucketName}:{${key}}`);
       });
     });
 
     describe('when an empty hashtag is provided', () => {
       const baseKey = `${bucketName}:{}${key}`;
+      const prefixedKey = `${prefix}${baseKey}`;
       it('it should use the entire basekey as hashtag', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
-        assert.equal(result, `${elevatedBucketName}:{${baseKey}}`);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
+        assert.equal(result, `${elevatedBucketName}:{${prefixedKey}}`);
       })
     });
 
     describe('when the hashtag is surrounded by curly braces', () => {
       const baseKey = `${bucketName}:{{${key}}}`;
       it('it should use the substring "{key" the hashtag', () => {
-        const result = replicateHashtag(baseKey, elevatedBucketName);
+        const result = replicateHashtag(baseKey, prefix, elevatedBucketName, prefix);
         assert.equal(result, `${elevatedBucketName}:{{${key}}`);
       });
     });

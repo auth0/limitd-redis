@@ -3,26 +3,43 @@ const _ = require('lodash');
 const assert = require('chai').assert;
 const LimitRedis = require('../lib/client');
 const ValidationError = LimitRedis.ValidationError;
+const clusterNodes = [{ host: 'localhost', port: 16371 }, { host: 'localhost', port: 16372 }, { host: 'localhost', port: 16373 }];
 
-describe('LimitdRedis', () => {
+const standaloneClientFn = (params) => {
+  return new LimitRedis({ uri: 'localhost', buckets: {}, prefix: 'tests:', ..._.omit(params, ['nodes']) });
+};
+const clusteredClientFn = (params) => {
+  return new LimitRedis({ nodes: clusterNodes, buckets: {}, prefix: 'tests:', ..._.omit(params, ['uri']) });
+};
+let clientCreator = standaloneClientFn;
+let clusteredEnv = false;
+
+if (process.env.CLUSTERED_ENV && process.env.CLUSTERED_ENV === "true") {
+  clusteredEnv = true;
+  clientCreator = clusteredClientFn;
+}
+
+describe("LimitdRedis", () => {
   let client;
   beforeEach((done) => {
-    client = new LimitRedis({ uri: 'localhost', buckets: {}, prefix: 'tests:' });
+    client = clientCreator();
     client.on('error', done);
     client.on('ready', done);
   });
 
   describe('#constructor', () => {
-    it('should call error if db fails', (done) => {
-      let called = false; // avoid uncaught
-      client = new LimitRedis({ uri: 'localhost:fail', buckets: {} });
-      client.on('error', () => {
-        if (!called) {
-          called = true;
-          return done();
-        }
+    if (!clusteredEnv) {
+      it('should call error if db fails', (done) => {
+        let called = false; // avoid uncaught
+        client = clientCreator({ uri: 'localhost:fail', nodes: [{ host: 'fakehost', port: 6379 }] });
+        client.on('error', () => {
+          if (!called) {
+            called = true;
+            return done();
+          }
+        });
       });
-    });
+    }
 
     it('should set up retry and circuitbreaker defaults', () => {
       assert.equal(client.retryOpts.retries, 3);
@@ -37,13 +54,13 @@ describe('LimitdRedis', () => {
     });
 
     it('should accept circuitbreaker parameters', () => {
-      client = new LimitRedis({ uri: 'localhost', buckets: {}, circuitbreaker: { onTrip: () => {} } });
+      client = clientCreator({ circuitbreaker: { onTrip: () => {} } });
       assert.ok(client.breakerOpts.onTrip);
     });
 
     it('should accept retry parameters', () => {
-      client = new LimitRedis({ uri: 'localhost', buckets: {}, retry: { retries: 5 } });
-      assert.equa;(client.retryOpts.retries, 5);
+      client = clientCreator({ retry: { retries: 5 } });
+      assert.equal(client.retryOpts.retries, 5);
     });
   });
 
@@ -69,7 +86,7 @@ describe('LimitdRedis', () => {
       client.handler('take', 'test', 'test', done);
     });
     it('should not retry or circuitbreak on ValidationError', (done) => {
-      client = new LimitRedis({ uri: 'localhost', buckets: {}, circuitbreaker: { maxFailures: 3, onTrip: () => {} } });
+      client = clientCreator({ circuitbreaker: { maxFailures: 3, onTrip: () => {} } });
       client.db.take = (params, cb) => {
         return cb(new ValidationError('invalid config'));
       };
@@ -109,7 +126,7 @@ describe('LimitdRedis', () => {
       client.handler('take', 'test', 'test', done);
     });
     it('should circuitbreak', (done) => {
-      client = new LimitRedis({ uri: 'localhost', buckets: {}, circuitbreaker: { maxFailures: 3, onTrip: () => {} } });
+      client = clientCreator({ circuitbreaker: { maxFailures: 3, onTrip: () => {} } });
       client.db.take = () => {};
       client.handler('take', 'test', 'test', _.noop);
       client.handler('take', 'test', 'test', _.noop);
@@ -205,4 +222,4 @@ describe('LimitdRedis', () => {
       });
     });
   });
-});
+}, 'LimitdRedis');

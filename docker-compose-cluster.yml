@@ -1,0 +1,41 @@
+services:
+  redis-1:
+    image: 'a0us-docker.jfrog.io/redis:6'
+    healthcheck:
+      interval: "1s"
+      test: [ "CMD", "redis-cli", "-p", "16371", "ping", "|", "grep", "PONG" ]
+    command: ["redis-server", "/etc/redis/redis.conf"]
+    volumes:
+      - ${PWD}/test-resources/redis-cluster/node-1/conf/redis.conf:/etc/redis/redis.conf
+    network_mode: host
+  redis-2:
+    image: 'a0us-docker.jfrog.io/redis:6'
+    healthcheck:
+      interval: "1s"
+      test: [ "CMD", "redis-cli", "-p", "16372", "ping", "|", "grep", "PONG" ]
+    command: [ "redis-server", "/etc/redis/redis.conf" ]
+    volumes:
+      - ${PWD}/test-resources/redis-cluster/node-2/conf/redis.conf:/etc/redis/redis.conf
+    network_mode: host
+  redis-3:
+    image: 'a0us-docker.jfrog.io/redis:6'
+    healthcheck:
+      interval: "1s"
+      test: [ "CMD", "redis-cli", "-p", "16373", "ping", "|", "grep", "PONG" ]
+    command: [ "redis-server", "/etc/redis/redis.conf" ]
+    volumes:
+      - ${PWD}/test-resources/redis-cluster/node-3/conf/redis.conf:/etc/redis/redis.conf
+    network_mode: host
+  redis-cluster-create:
+    image: 'a0us-docker.jfrog.io/redis:6'
+    command: '/usr/local/etc/redis/redis-cluster-create.sh'
+    depends_on:
+      redis-1:
+        condition: service_healthy
+      redis-2:
+        condition: service_healthy
+      redis-3:
+        condition: service_healthy
+    volumes:
+      - ${PWD}/test-resources/redis-cluster/redis-cluster-create.sh:/usr/local/etc/redis/redis-cluster-create.sh
+    network_mode: host

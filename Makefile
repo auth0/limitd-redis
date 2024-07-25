@@ -8,7 +8,6 @@ test-standalone-teardown:
 
 test-cluster-setup:
 	docker-compose -f docker-compose-cluster.yml up -d
-	timeout 60s sh -c 'until ! docker ps | grep limitd-redis-redis-cluster-create; do echo "Waiting for cluster create container to finish..."; sleep 2; done'
 
 test-cluster-teardown:
 	docker-compose -f docker-compose-cluster.yml down

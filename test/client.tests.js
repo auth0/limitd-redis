@@ -3,7 +3,7 @@ const _ = require('lodash');
 const assert = require('chai').assert;
 const LimitRedis = require('../lib/client');
 const ValidationError = LimitRedis.ValidationError;
-const clusterNodes = [{ host: 'localhost', port: 16371 }, { host: 'localhost', port: 16372 }, { host: 'localhost', port: 16373 }];
+const clusterNodes = [{ host: '127.0.0.1', port: 16371 }, { host: '127.0.0.1', port: 16372 }, { host: '127.0.0.1', port: 16373 }];
 
 const standaloneClientFn = (params) => {
   return new LimitRedis({ uri: 'localhost', buckets: {}, prefix: 'tests:', ..._.omit(params, ['nodes']) });

@@ -8,7 +8,7 @@ const { Toxiproxy, Toxic } = require('toxiproxy-node-client');
 const crypto = require('crypto');
 const { endOfMonthTimestamp, replicateHashtag } = require('../lib/utils');
 
-const clusterNodes = [{ host: 'localhost', port: 16371 }, { host: 'localhost', port: 16372 }, { host: 'localhost', port: 16373 }];
+const clusterNodes = [{ host: '127.0.0.1', port: 16371 }, { host: '127.0.0.1', port: 16372 }, { host: '127.0.0.1', port: 16373 }];
 
 const standaloneClientFn = (params) => {
   return new LimitDB({ uri: 'localhost', buckets: {}, prefix: 'tests:', ..._.omit(params, ['nodes']) });

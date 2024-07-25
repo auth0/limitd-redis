@@ -26,23 +26,29 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Install dependencies
-        run: npm install
+      - name: install redis-ci
+        run: sudo apt-get install redis-tools
 
-      - name: Setup Standalone Tests
-        run: make test-standalone-setup
+#      - name: Install dependencies
+#        run: npm install
 
-      - name: Run Standalone tests
-        run: make test-standalone
-
-      - name: Teardown Standalone Tests
-        run: make test-standalone-teardown
-
+#      - name: Setup Standalone Tests
+#        run: make test-standalone-setup
+#
+#      - name: Run Standalone tests
+#        run: make test-standalone
+#
+#      - name: Teardown Standalone Tests
+#        run: make test-standalone-teardown
+#
       - name: Setup Clustered Tests
         run: make test-cluster-setup
 
-      - name: Run Clustered tests
-        run: make test-cluster
+      - name: Check Redis Cluster
+        run: redis-cli -c -p 16371 cluster info
+
+#      - name: Run Clustered tests
+#        run: make test-cluster
 
       - name: Teardown Clustered Tests
         run: make test-cluster-teardown

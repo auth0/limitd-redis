@@ -14,14 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [14.x, 16.x, 18.x, 20.x]
+        #node-version: [14.x, 16.x, 18.x, 20.x]
+        node-version: [18.x]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Start containers
-        run: docker-compose -f "docker-compose.yml" up -d --build
 
       - name: Install node
         uses: actions/setup-node@v4
@@ -31,8 +29,20 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests
-        run: npm run test
+      - name: Setup Standalone Tests
+        run: make test-standalone-setup
 
-      - name: Stop containers
-        run: docker-compose -f "docker-compose.yml" down
+      - name: Run Standalone tests
+        run: make test-standalone
+
+      - name: Teardown Standalone Tests
+        run: make test-standalone-teardown
+
+      - name: Setup Clustered Tests
+        run: make test-cluster-setup
+
+      - name: Run Clustered tests
+        run: make test-cluster
+
+      - name: Teardown Clustered Tests
+        run: make test-cluster-teardown

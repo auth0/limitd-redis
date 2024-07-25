@@ -28,19 +28,6 @@ describe("LimitdRedis", () => {
   });
 
   describe('#constructor', () => {
-    if (!clusteredEnv) {
-      it('should call error if db fails', (done) => {
-        let called = false; // avoid uncaught
-        client = clientCreator({ uri: 'localhost:fail', nodes: [{ host: 'fakehost', port: 6379 }] });
-        client.on('error', () => {
-          if (!called) {
-            called = true;
-            return done();
-          }
-        });
-      });
-    }
-
     it('should set up retry and circuitbreaker defaults', () => {
       assert.equal(client.retryOpts.retries, 3);
       assert.equal(client.retryOpts.minTimeout, 10);
@@ -62,6 +49,43 @@ describe("LimitdRedis", () => {
       client = clientCreator({ retry: { retries: 5 } });
       assert.equal(client.retryOpts.retries, 5);
     });
+
+    if(!clusteredEnv) {
+      describe('when using the standalone #constructor', () => {
+        // in cluster mode, ioredis doesn't fail when given a bad node address, it keeps retrying
+        it('should call error if db fails', (done) => {
+          let called = false; // avoid uncaught
+          client = clientCreator({ uri: 'localhost:fail' });
+          client.on('error', () => {
+            if (!called) {
+              called = true;
+              return done();
+            }
+          });
+        });
+      });
+    } else {
+      describe('when using the clustered #constructor', () => {
+        it('should allow setting username and password', (done) => {
+          let client = clientCreator({ username: 'testuser', password: 'testpass' });
+          client.on('ready', () => {
+            client.db.redis.acl("WHOAMI", (err, res) => {
+                assert.equal(res, 'testuser');
+                done();
+            })
+          });
+        });
+        it('should use the default user if no one is provided', (done) => {
+          let client = clientCreator();
+          client.on('ready', () => {
+            client.db.redis.acl("WHOAMI", (err, res) => {
+              assert.equal(res, 'default');
+              done();
+            })
+          });
+        });
+      });
+    }
   });
 
   describe('#handler', () => {

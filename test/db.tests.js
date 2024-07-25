@@ -157,15 +157,32 @@ describe('LimitDBRedis', () => {
     it('should throw an when missing bucket configuration', () => {
       assert.throws(() => clientCreator({ uri: 'localhost:fail', nodes: [{ host: 'fakehost', port: 6379 }], buckets: undefined }), /Buckets must be specified for Limitd/);
     });
+
     if (!clusteredEnv) {
-      it('should emit error on failure to connect to redis', (done) => {
-        let called = false;
-        db = clientCreator({ uri: 'localhost:fail', nodes: [{ host: 'fakehost', port: 6379 }] })
-        db.on('error', () => {
-          if (!called) {
-            called = true;
-            return done();
-          }
+      describe('when using the standalone #constructor', () => {
+        it('should emit error on failure to connect to redis', (done) => {
+          let called = false;
+          db = clientCreator({ uri: 'localhost:fail' })
+          db.on('error', () => {
+            if (!called) {
+              called = true;
+              return done();
+            }
+          });
+        });
+      })
+    } else {
+      describe('when using the clustered #constructor', () => {
+        it('should allow setting username and password', (done) => {
+          db = clientCreator({ buckets: {}, username: 'testuser', password: 'testpass' });
+          db.on('ready', () => {
+            db.redis.acl("WHOAMI", (err, res) => {
+              assert.equal(res, 'testuser');
+              done();
+            })
+          });
+          db.on('error', (err) => done(err));
+          db.on('node error', (err) => done(err));
         });
       });
     }

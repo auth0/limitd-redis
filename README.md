@@ -71,7 +71,7 @@ const limitd = new Limitd({
 - `buckets` (object): Setup your bucket types.
 - `prefix` (string): Prefix keys in Redis.
 - `ping` (object): Configure ping to Redis DB.
-- `username` (string): Redis username. Only to be used in Cluster mode.
+- `username` (string): Redis username. Only to be used in Cluster mode. Needs Redis >= v6.
 - `password` (string): Redis password.
 
 ### Buckets:

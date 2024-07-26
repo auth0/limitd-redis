@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: install redis-ci
+      - name: install redis-cli
         run: sudo apt-get install redis-tools
 
       - name: Install dependencies

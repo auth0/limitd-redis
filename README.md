@@ -58,7 +58,9 @@ const limitd = new Limitd({
     interval: 1000,
     maxFailedAttempts: 5,
     reconnectIfFailed: true
-  }
+  },
+  username: 'username',
+  password: 'password'
 });
 ```
 
@@ -69,6 +71,8 @@ const limitd = new Limitd({
 - `buckets` (object): Setup your bucket types.
 - `prefix` (string): Prefix keys in Redis.
 - `ping` (object): Configure ping to Redis DB.
+- `username` (string): Redis username. Only to be used in Cluster mode.
+- `password` (string): Redis password.
 
 ### Buckets:
 

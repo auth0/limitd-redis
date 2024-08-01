@@ -3,6 +3,30 @@
 `limitd-redis` is client for limits on top of `redis` using [Token Buckets](https://en.wikipedia.org/wiki/Token_bucket).
 It's a fork from [LimitDB](https://github.com/limitd/limitdb).
 
+## Table of Contents
+
+- [Installation](#installation)
+- [Configure](#configure)
+   - [Options available](#options-available)
+   - [Buckets](#buckets)
+   - [Ping](#ping)
+- [Overrides](#overrides)
+- [ERL (Elevated Rate Limits)](#erl-elevated-rate-limits)
+   - [Prerequisites](#prerequisites)
+   - [Introduction](#introduction)
+   - [Configuration](#configuration)
+   - [ERL Quota](#erl-quota)
+   - [Use of Redis hash tags](#use-of-redis-hash-tags)
+- [Breaking changes from `Limitdb`](#breaking-changes-from-limitdb)
+- [TAKE](#take)
+- [TAKEELEVATED](#takeelevated)
+- [PUT](#put)
+- [Overriding Configuration at Runtime](#overriding-configuration-at-runtime)
+   - [Overriding Configuration at Runtime with ERL](#overriding-configuration-at-runtime-with-erl)
+- [Testing](#testing)
+- [Author](#author)
+- [License](#license)
+
 ## Installation
 
 ```
@@ -34,7 +58,9 @@ const limitd = new Limitd({
     interval: 1000,
     maxFailedAttempts: 5,
     reconnectIfFailed: true
-  }
+  },
+  username: 'username',
+  password: 'password'
 });
 ```
 
@@ -45,6 +71,8 @@ const limitd = new Limitd({
 - `buckets` (object): Setup your bucket types.
 - `prefix` (string): Prefix keys in Redis.
 - `ping` (object): Configure ping to Redis DB.
+- `username` (string): Redis username. This is ignored if not in Cluster mode. Needs Redis >= v6.
+- `password` (string): Redis password.
 
 ### Buckets:
 
@@ -344,6 +372,13 @@ const configOverride = {
   }
 }
 ```
+
+## Testing
+
+- Setup tests: `make test-setup`
+- Run tests: `make test`
+- Teardown tests: `make test-teardown`
+
 
 ## Author
 

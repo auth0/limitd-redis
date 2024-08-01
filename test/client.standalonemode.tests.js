@@ -1,7 +1,3 @@
-if (process.env.CLUSTERED_ENV === "true") {
-  return;
-}
-
 /* eslint-env node, mocha */
 const _ = require('lodash');
 const assert = require('chai').assert;

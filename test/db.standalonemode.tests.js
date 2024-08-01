@@ -1,7 +1,3 @@
-if (process.env.CLUSTERED_ENV === 'true') {
-  return;
-}
-
 const LimitDB = require('../lib/db');
 const _ = require('lodash');
 const { tests: dbTests, buckets} = require('./db.tests');

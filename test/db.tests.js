@@ -43,6 +43,10 @@ const buckets = {
         per_second: 1000,
         fixed_window: true
       },
+      '124.124.124.124': {
+        per_second: 1000,
+        fixed_window: false
+      }
     }
   },
   user: {
@@ -847,36 +851,70 @@ module.exports.tests = (clientCreator) => {
         });
       });
 
-      it('should work for fixed_window', (done) => {
-        const now = Date.now();
-        const interval = 1000;
-        db.take({ type: 'ip', key: '123.123.123.123', count: 1000 }, (err, response) => {
-          if (err) return done(err);
-          assert.ok(response.conformant);
-          assert.equal(response.remaining, 0);
-          assert.closeTo(response.reset, (now + interval) / 1000, 1);
-          assert.equal(response.limit, 1000);
+      describe('fixed window', () => {
+        it('should work when setting fixed_window in the bucket config', (done) => {
+          const now = Date.now();
+          const interval = 1000;
+          db.take({ type: 'ip', key: '123.123.123.123', count: 1000 }, (err, response) => {
+            if (err) return done(err);
+            assert.ok(response.conformant);
+            assert.equal(response.remaining, 0);
+            assert.closeTo(response.reset, (now + interval) / 1000, 1);
+            assert.equal(response.limit, 1000);
 
-          setTimeout(() => {
-            db.take({ type: 'ip', key: '123.123.123.123', count: 1 }, (err, response) => {
-              assert.notOk(response.conformant);
-              assert.equal(response.remaining, 0);
-              assert.closeTo(response.reset, (now + interval) / 1000, 1);
-              assert.equal(response.limit, 1000);
+            setTimeout(() => {
+              db.take({ type: 'ip', key: '123.123.123.123', count: 1 }, (err, response) => {
+                assert.notOk(response.conformant);
+                assert.equal(response.remaining, 0);
+                assert.closeTo(response.reset, (now + interval) / 1000, 1);
+                assert.equal(response.limit, 1000);
 
-              setTimeout(() => {
-                db.take({ type: 'ip', key: '123.123.123.123', count: 1 }, (err, response) => {
-                  assert.ok(response.conformant);
-                  assert.equal(response.remaining, 999);
-                  assert.closeTo(response.reset, (Date.now() + interval) / 1000, 1);
-                  assert.equal(response.limit, 1000);
-                  done();
-                });
-              }, interval);
-            });
-          }, interval / 2);
+                setTimeout(() => {
+                  db.take({ type: 'ip', key: '123.123.123.123', count: 1 }, (err, response) => {
+                    assert.ok(response.conformant);
+                    assert.equal(response.remaining, 999);
+                    assert.closeTo(response.reset, (Date.now() + interval) / 1000, 1);
+                    assert.equal(response.limit, 1000);
+                    done();
+                  });
+                }, interval);
+              });
+            }, interval / 2);
+          });
+        });
+
+        it('should work when passing fixed_window by parameter', (done) => {
+          const now = Date.now();
+          const interval = 1000;
+          db.take({ type: 'ip', key: '124.124.124.124', count: 1000, fixed_window: true }, (err, response) => {
+            if (err) return done(err);
+            assert.ok(response.conformant);
+            assert.equal(response.remaining, 0);
+            assert.closeTo(response.reset, (now + interval) / 1000, 1);
+            assert.equal(response.limit, 1000);
+
+            setTimeout(() => {
+              db.take({ type: 'ip', key: '124.124.124.124', count: 1, fixed_window: true }, (err, response) => {
+                assert.notOk(response.conformant);
+                assert.equal(response.remaining, 0);
+                assert.closeTo(response.reset, (now + interval) / 1000, 1);
+                assert.equal(response.limit, 1000);
+
+                setTimeout(() => {
+                  db.take({ type: 'ip', key: '124.124.124.124', count: 1, fixed_window: true }, (err, response) => {
+                    assert.ok(response.conformant);
+                    assert.equal(response.remaining, 999);
+                    assert.closeTo(response.reset, (Date.now() + interval) / 1000, 1);
+                    assert.equal(response.limit, 1000);
+                    done();
+                  });
+                }, interval);
+              });
+            }, interval / 2);
+          });
         });
       });
+
 
       describe('elevated limits specific tests', () => {
         const takeElevatedPromise = (params) => new Promise((resolve, reject) => {

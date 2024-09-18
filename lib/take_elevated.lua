@@ -3,12 +3,13 @@ local bucket_size = tonumber(ARGV[2])
 local tokens_to_take = tonumber(ARGV[3])
 local ttl = tonumber(ARGV[4])
 local drip_interval = tonumber(ARGV[5])
-local erl_tokens_per_ms = tonumber(ARGV[6])
-local erl_bucket_size = tonumber(ARGV[7])
-local erl_activation_period_seconds = tonumber(ARGV[8])
-local erl_quota = tonumber(ARGV[9])
-local erl_quota_expiration_epoch = tonumber(ARGV[10])
-local erl_configured_for_bucket = tonumber(ARGV[11]) == 1
+local fixed_window         = tonumber(ARGV[6])
+local erl_tokens_per_ms = tonumber(ARGV[7])
+local erl_bucket_size = tonumber(ARGV[8])
+local erl_activation_period_seconds = tonumber(ARGV[9])
+local erl_quota = tonumber(ARGV[10])
+local erl_quota_expiration_epoch = tonumber(ARGV[11])
+local erl_configured_for_bucket = tonumber(ARGV[12]) == 1
 
 -- the key to use for pulling last bucket state from redis
 local lastBucketStateKey = KEYS[1]
@@ -35,6 +36,13 @@ local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, cu
         -- drip bucket
         local last_drip = current[1]
         local content = current[2]
+
+        if fixed_window > 0 then
+            -- fixed window for granting new tokens
+            local interval_correction = (current_timestamp_ms - last_drip) % fixed_window
+            current_timestamp_ms = current_timestamp_ms - interval_correction
+        end
+
         local delta_ms = math.max(current_timestamp_ms - last_drip, 0)
         local drip_amount = delta_ms * tokens_per_ms
         return math.min(content + drip_amount, bucket_size)

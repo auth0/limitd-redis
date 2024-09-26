@@ -49,7 +49,9 @@ redis.call('HMSET', KEYS[1],
 redis.call('EXPIRE', KEYS[1], ttl)
 
 local reset_ms = 0
-if drip_interval > 0 then
+if fixed_window > 0 then
+    reset_ms = current_timestamp_ms + fixed_window
+elseif drip_interval > 0 then
     reset_ms = math.ceil(current_timestamp_ms + (bucket_size - new_content) * drip_interval)
 end
 

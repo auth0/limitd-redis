@@ -16,38 +16,38 @@ jobs:
       matrix:
         node-version: [14.x, 16.x, 18.x, 20.x]
 
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#
-#      - name: Install node
-#        uses: actions/setup-node@v4
-#        with:
-#          node-version: ${{ matrix.node-version }}
-#
-#      - name: install redis-cli
-#        run: sudo apt-get install redis-tools
-#
-#      - name: Install dependencies
-#        run: npm install
-#
-#      - name: Setup Standalone Tests
-#        run: make test-standalone-setup
-#
-#      - name: Run Standalone tests
-#        run: make test-standalone
-#
-#      - name: Teardown Standalone Tests
-#        run: make test-standalone-teardown
-#
-#      - name: Setup Clustered Tests
-#        run: make test-cluster-setup
-#
-#      - name: Check Redis Cluster
-#        run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
-#
-#      - name: Run Clustered tests
-#        run: make test-cluster
-#
-#      - name: Teardown Clustered Tests
-#        run: make test-cluster-teardown
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: install redis-cli
+        run: sudo apt-get install redis-tools
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Standalone Tests
+        run: make test-standalone-setup
+
+      - name: Run Standalone tests
+        run: make test-standalone
+
+      - name: Teardown Standalone Tests
+        run: make test-standalone-teardown
+
+      - name: Setup Clustered Tests
+        run: make test-cluster-setup
+
+      - name: Check Redis Cluster
+        run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
+
+      - name: Run Clustered tests
+        run: make test-cluster
+
+      - name: Teardown Clustered Tests
+        run: make test-cluster-teardown

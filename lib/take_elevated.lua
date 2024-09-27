@@ -31,6 +31,22 @@ end
 local current_time = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000
 
+local function adjustCurrentTimestampForFixedWindow(current_timestamp_ms)
+    if current[1] and tokens_per_ms then
+        -- drip bucket
+        local last_drip = current[1]
+
+        if fixed_window > 0 then
+            -- fixed window for granting new tokens
+            local interval_correction = (current_timestamp_ms - last_drip) % fixed_window
+            current_timestamp_ms = current_timestamp_ms - interval_correction
+        end
+
+        return current_timestamp_ms
+    end
+    return current_timestamp_ms
+end
+
 local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, current_timestamp_ms)
     if current[1] and tokens_per_ms then
         -- drip bucket
@@ -78,6 +94,9 @@ local function takeERLQuota(erl_quota_key, erl_quota, erl_quota_expiration_epoch
     redis.call('SET', erl_quota_key, previously_used_quota+1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
     return previously_used_quota
 end
+
+-- adjust current timestamp for fixed window
+current_timestamp_ms = adjustCurrentTimestampForFixedWindow(current_timestamp_ms)
 
 -- Enable verbatim replication to ensure redis sends script's source code to all masters
 -- managing the sharded database in a clustered deployment.

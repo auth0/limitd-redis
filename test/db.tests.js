@@ -852,6 +852,15 @@ module.exports.tests = (clientCreator) => {
       });
 
       describe('fixed window', () => {
+        const redisHMGetPromise = (key, fields) => new Promise((resolve, reject) => {
+          db.redis.hmget(key, fields, (err, value) => {
+            if (err) {
+              return reject(err);
+            }
+            resolve(value);
+          });
+        });
+
         [
           {
             name: 'take',
@@ -880,29 +889,35 @@ module.exports.tests = (clientCreator) => {
             assert.equal(response.remaining, 0);
             assert.closeTo(response.reset, Math.ceil((now + interval) / 1000), 1);
             assert.equal(response.limit, 1000);
+            redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
+              const lastDrip = value[0];
+              setTimeout(() => {
+                takeFunc({ type: 'ip', key, count: 1, fixed_window: fixedWindowParam }, (err, response) => {
+                  assert.notOk(response.conformant);
+                  assert.equal(response.remaining, 0);
+                  assert.closeTo(response.reset, Math.ceil((now + interval) / 1000), 1);
+                  assert.equal(response.limit, 1000);
+                  redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
+                    assert.equal(value[0], lastDrip, "last drip should not have changed");
+                    setTimeout(() => {
+                      takeFunc({ type: 'ip', key, count: 1, fixed_window: fixedWindowParam }, (err, response) => {
+                        assert.ok(response.conformant);
+                        assert.equal(response.remaining, 999);
+                        assert.closeTo(response.reset, Math.ceil((Date.now() + interval) / 1000), 1);
+                        assert.equal(response.limit, 1000);
+                        redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
+                          assert.notEqual(value[0], lastDrip, "last drip should have changed");
+                          done();
+                        });
+                      });
+                    }, interval);
+                  })
+                });
+              }, interval / 2);
+            })
 
-            setTimeout(() => {
-              takeFunc({ type: 'ip', key, count: 1, fixed_window: fixedWindowParam }, (err, response) => {
-                assert.notOk(response.conformant);
-                assert.equal(response.remaining, 0);
-                assert.closeTo(response.reset, Math.ceil((now + interval) / 1000), 1);
-                assert.equal(response.limit, 1000);
-
-                setTimeout(() => {
-                  takeFunc({ type: 'ip', key, count: 1, fixed_window: fixedWindowParam }, (err, response) => {
-                    assert.ok(response.conformant);
-                    assert.equal(response.remaining, 999);
-                    assert.closeTo(response.reset, Math.ceil((Date.now() + interval) / 1000), 1);
-                    assert.equal(response.limit, 1000);
-                    done();
-                  });
-                }, interval);
-              });
-            }, interval / 2);
           });
         }
-
-
       });
 
 

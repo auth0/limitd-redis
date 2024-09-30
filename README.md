@@ -267,7 +267,8 @@ The result object has:
 -  `conformant` (boolean): true if the requested amount is conformant to the limit.
 -  `remaining` (int): the amount of remaining tokens in the bucket.
 -  `reset` (int / unix timestamp): unix timestamp of the date when the bucket will be full again.
--  `limit` (int): the size of the bucket.
+-  `limit` (int): the size of the bucket. 
+-  `delta_reset_ms` (int): the time remaining until the bucket is full again, expressed in milliseconds from the current time.
 
 ## TAKEELEVATED
 
@@ -305,6 +306,7 @@ The result object has:
 -  `remaining` (int): the amount of remaining tokens in the bucket.
 -  `reset` (int / unix timestamp): unix timestamp of the date when the bucket will be full again.
 -  `limit` (int): the size of the bucket.
+-  `delta_reset_ms` (int): the time remaining until the bucket is full again, expressed in milliseconds from the current time.
 -  `elevated_limits` (object)
   -  `triggered` (boolean): true if ERL was triggered in the current request.
   -  `activated` (boolean): true if ERL is activated. Not necessarily triggered in this call.

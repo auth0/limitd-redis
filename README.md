@@ -20,6 +20,7 @@ It's a fork from [LimitDB](https://github.com/limitd/limitdb).
 - [Breaking changes from `Limitdb`](#breaking-changes-from-limitdb)
 - [TAKE](#take)
 - [TAKEELEVATED](#takeelevated)
+  - [Use of fixed window on Take and TakeElevated](#use-of-fixed-window-on-take-and-takeelevated)
 - [PUT](#put)
 - [Overriding Configuration at Runtime](#overriding-configuration-at-runtime)
    - [Overriding Configuration at Runtime with ERL](#overriding-configuration-at-runtime-with-erl)
@@ -320,6 +321,23 @@ Example of interpretation:
 if erl_triggered // quota left in the quotaKey bucket
 if !erl_triggered // ERL wasn't triggered in this call, so we haven't identified the remaining quota.
 ```
+
+### Use of fixed window on Take and TakeElevated
+If you want to use fixed window on Take or TakeElevated, you can do so by setting the `fixed_window` property in the bucket configuration to `true` (default `false`). This will refill the bucket at the specified interval instead of granular.
+
+On top of that, you can use the `fixed_window` property in the `configOverride` parameter to safely activate/deactivate the new fixed_window algorithm from the client on-demand.
+
+The following table describes how the fixed window bucket configuration and the fixed window param interact to activate the fixed window algorithm:
+
+| fixed_window bucket config | fixed_window param | Fixed Window Enabled |
+|----------------------------|--------------------|----------------------|
+| true                       | true               | Yes                  |
+| true                       | false              | No                   |
+| true                       | not provided       | Yes                  |
+| false                      | true               | No                   |
+| false                      | false              | No                   |
+| false                      | not provided       | No                   |
+
 
 ## PUT
 

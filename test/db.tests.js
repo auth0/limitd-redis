@@ -704,8 +704,8 @@ module.exports.tests = (clientCreator) => {
 
           describe(`${testParams.name} delta_reset_ms`, () => {
             it('should reset the bucket after the specified interval', (done) => {
-              db.configurateBuckets({ 'delta_bucket': { size: 100, per_second: 100 } });
-              const params = { ...testParams.params, type: 'delta_bucket', key: 'delta_key', count: 100 };
+              db.configurateBuckets({ 'test_bucket': { size: 100, per_second: 100 } });
+              const params = { ...testParams.params, type: 'test_bucket', key: 'delta_key', count: 100 };
               testParams.take(params, (err, res) => {
                 if (err) {
                   done(err);
@@ -725,6 +725,19 @@ module.exports.tests = (clientCreator) => {
                     done();
                   });
                 }, res.delta_reset_ms);
+              });
+            });
+
+            it('should set delta_reset_ms to 0 when bucket is unlimited', (done) => {
+              db.configurateBuckets({ 'test_bucket': { size: 100, unlimited: true } });
+              const params = { ...testParams.params, type: 'test_bucket', key: 'delta_key', count: 100 };
+              testParams.take(params, (err, res) => {
+                if (err) {
+                  done(err);
+                }
+                assert.isTrue(res.conformant);
+                assert.equal(res.delta_reset_ms, 0);
+                done();
               });
             });
           });

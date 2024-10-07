@@ -272,6 +272,7 @@ module.exports.tests = (clientCreator) => {
                   assert.ok(result.conformant);
                   assert.equal(result.remaining, 9);
                   assert.closeTo(result.reset, now / 1000, 3);
+                  assert.closeTo(result.delta_reset_ms, (result.limit - result.remaining) * 1000/buckets.ip.per_second, 3);
                   assert.equal(result.limit, 10);
                   done();
                 });
@@ -291,6 +292,7 @@ module.exports.tests = (clientCreator) => {
               assert.ok(result.conformant);
               assert.equal(result.remaining, 9);
               assert.closeTo(result.reset, now / 1000, 3);
+              assert.closeTo(result.delta_reset_ms, (result.limit - result.remaining) * 1000/buckets.ip.per_second, 3);
               assert.equal(result.limit, 10);
               done();
             });
@@ -309,6 +311,7 @@ module.exports.tests = (clientCreator) => {
               assert.notOk(result.conformant);
               assert.equal(result.remaining, 10);
               assert.closeTo(result.reset, now / 1000, 3);
+              assert.closeTo(result.delta_reset_ms, (result.limit - result.remaining) * 1000/buckets.ip.per_second, 3);
               assert.equal(result.limit, 10);
               done();
             });
@@ -431,6 +434,7 @@ module.exports.tests = (clientCreator) => {
               assert.ok(lastResult.conformant);
               assert.equal(lastResult.remaining, 1);
               assert.closeTo(lastResult.reset, now / 1000, 3);
+              assert.closeTo(lastResult.delta_reset_ms, (lastResult.limit - lastResult.remaining) * 1000/buckets.ip.per_second, 100);
               assert.equal(lastResult.limit, 10);
               done();
             });
@@ -446,6 +450,7 @@ module.exports.tests = (clientCreator) => {
               assert.ok(result.conformant);
               assert.equal(result.remaining, 0);
               assert.closeTo(result.reset, now / 1000 + 1800, 1);
+              assert.closeTo(result.delta_reset_ms, (result.limit - result.remaining) * 3600000/buckets.ip.overrides['10.0.0.1'].per_hour, 1);
               assert.equal(result.limit, 1);
               done();
             });
@@ -460,6 +465,7 @@ module.exports.tests = (clientCreator) => {
               assert.equal(response.limit, 100);
               assert.equal(response.remaining, 100);
               assert.closeTo(response.reset, now / 1000, 1);
+              assert.closeTo(response.delta_reset_ms, (response.limit - response.remaining) * 1000/buckets.ip.per_second, 1);
               done();
             });
           });
@@ -695,6 +701,46 @@ module.exports.tests = (clientCreator) => {
               });
             });
           });
+
+          describe(`${testParams.name} delta_reset_ms`, () => {
+            it('should reset the bucket after the specified interval', (done) => {
+              db.configurateBuckets({ 'test_bucket': { size: 100, per_second: 100 } });
+              const params = { ...testParams.params, type: 'test_bucket', key: 'delta_key', count: 100 };
+              testParams.take(params, (err, res) => {
+                if (err) {
+                  done(err);
+                }
+                assert.isTrue(res.conformant);
+                assert.equal(res.remaining, 0);
+                assert.notEqual(res.delta_reset_ms, 0);
+
+                setTimeout(() => {
+                  params.count = 1;
+                  testParams.take(params, (err, res) => {
+                    if (err) {
+                      done(err);
+                    }
+                    assert.isTrue(res.conformant);
+                    assert.notEqual(res.delta_reset_ms, 0);
+                    done();
+                  });
+                }, res.delta_reset_ms);
+              });
+            });
+
+            it('should set delta_reset_ms to 0 when bucket is unlimited', (done) => {
+              db.configurateBuckets({ 'test_bucket': { size: 100, unlimited: true } });
+              const params = { ...testParams.params, type: 'test_bucket', key: 'delta_key', count: 100 };
+              testParams.take(params, (err, res) => {
+                if (err) {
+                  done(err);
+                }
+                assert.isTrue(res.conformant);
+                assert.equal(res.delta_reset_ms, 0);
+                done();
+              });
+            });
+          });
         });
       });
 
@@ -720,6 +766,7 @@ module.exports.tests = (clientCreator) => {
           }
           const dayFromNow = Date.now() + oneDayInMs;
           assert.closeTo(response.reset, dayFromNow / 1000, 3);
+          assert.closeTo(response.delta_reset_ms, (response.limit - response.remaining) * 24*60*60*1000, 3);
           done();
         });
       });
@@ -737,6 +784,7 @@ module.exports.tests = (clientCreator) => {
 
           const dayFromNow = Date.now() + oneDayInMs;
           assert.closeTo(response.reset, dayFromNow / 1000, 3);
+          assert.closeTo(response.delta_reset_ms, (response.limit - response.remaining) * 24*60*60*1000, 3);
           done();
         });
       });
@@ -2146,6 +2194,7 @@ module.exports.tests = (clientCreator) => {
               if (err) return done(err);
               const dayFromNow = Date.now() + oneDayInMs;
               assert.closeTo(response.reset, dayFromNow / 1000, 3);
+              assert.closeTo(response.delta_reset_ms, (response.limit - response.remaining) * 24*60*60*1000, 3);
               done();
             });
           });
@@ -2165,6 +2214,7 @@ module.exports.tests = (clientCreator) => {
               assert.equal(response.remaining, 3);
               const dayFromNow = Date.now() + oneDayInMs;
               assert.closeTo(response.reset, dayFromNow / 1000, 3);
+              assert.closeTo(response.delta_reset_ms, (response.limit - response.remaining) * 24*60*60*1000, 3);
               done();
             });
           });
@@ -2297,6 +2347,7 @@ module.exports.tests = (clientCreator) => {
           assert.notOk(response.delayed);
           assert.equal(response.remaining, 9);
           assert.closeTo(response.reset, now / 1000, 3);
+          assert.closeTo(response.delta_reset_ms, (response.limit - response.remaining) * 1000/buckets.ip.per_second, 3);
           done();
         });
       });

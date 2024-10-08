@@ -8,6 +8,7 @@ local fixed_window         = tonumber(ARGV[6])
 
 local current_time = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000
+local redis_timestamp_ms = current_timestamp_ms
 
 local current = redis.pcall('HMGET', KEYS[1], 'd', 'r')
 
@@ -55,4 +56,4 @@ elseif drip_interval > 0 then
     reset_ms = math.ceil(current_timestamp_ms + (bucket_size - new_content) * drip_interval)
 end
 
-return { new_content, enough_tokens, current_timestamp_ms, reset_ms }
+return { new_content, enough_tokens, redis_timestamp_ms, reset_ms }

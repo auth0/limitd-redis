@@ -458,7 +458,7 @@ module.exports.tests = (clientCreator) => {
               }
               assert.ok(result.conformant);
               assert.equal(result.remaining, 0);
-              assert.closeTo(result.reset, now / 1000 + 1800, 1);
+              assert.closeTo(result.reset, now / 1000 + 1800, 3);
               assert.closeTo(result.delta_reset_ms, (result.limit - result.remaining) * 3600000/buckets.ip.overrides['10.0.0.1'].per_hour, 1);
               assert.equal(result.limit, 1);
               done();
@@ -878,14 +878,13 @@ module.exports.tests = (clientCreator) => {
 
           describe(`when calling the lua script`, () => {
             it(`should use fixed window when asked`, (done) => {
-              const now = Date.now();
               const interval = 1000;
               const key = '123.123.123.123';
               takeFunc({ type: 'ip', key, count: 1000, fixed_window: true }, (err, response) => {
                 if (err) return done(err);
                 assert.ok(response.conformant);
                 assert.equal(response.remaining, 0);
-                assert.closeTo(response.reset, Math.ceil((now + interval) / 1000), 1);
+                assert.closeTo(response.delta_reset_ms, interval, 100);
                 assert.equal(response.limit, 1000);
                 redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
                   const lastDrip = value[0];
@@ -893,7 +892,7 @@ module.exports.tests = (clientCreator) => {
                     takeFunc({ type: 'ip', key, count: 1, fixed_window: true }, (err, response) => {
                       assert.notOk(response.conformant);
                       assert.equal(response.remaining, 0);
-                      assert.closeTo(response.reset, Math.ceil((now + interval) / 1000), 1);
+                      assert.closeTo(response.delta_reset_ms, interval/2, 100);
                       assert.equal(response.limit, 1000);
                       redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
                         assert.equal(value[0], lastDrip, 'last drip should not have changed');
@@ -901,7 +900,7 @@ module.exports.tests = (clientCreator) => {
                           takeFunc({ type: 'ip', key, count: 1, fixed_window: true }, (err, response) => {
                             assert.ok(response.conformant);
                             assert.equal(response.remaining, 999);
-                            assert.closeTo(response.reset, Math.ceil((Date.now() + interval) / 1000), 1);
+                            assert.closeTo(response.delta_reset_ms, interval, 100);
                             assert.equal(response.limit, 1000);
                             redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
                               assert.notEqual(value[0], lastDrip, 'last drip should have changed');

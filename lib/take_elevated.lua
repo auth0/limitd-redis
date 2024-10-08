@@ -30,6 +30,7 @@ end
 -- get current time from redis, to be used in new bucket size calculations later
 local current_time = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000
+local redis_timestamp_ms = current_timestamp_ms
 
 local function adjustCurrentTimestampForFixedWindow(current_timestamp_ms)
     if current[1] and tokens_per_ms then
@@ -151,7 +152,9 @@ redis.call('HMSET', lastBucketStateKey,
 redis.call('EXPIRE', lastBucketStateKey, ttl)
 
 local reset_ms = 0
-if drip_interval > 0 then
+if fixed_window > 0 then
+    reset_ms = current_timestamp_ms + fixed_window
+elseif drip_interval > 0 then
     if is_erl_activated == 1 then
         reset_ms = math.ceil(current_timestamp_ms + (erl_bucket_size - bucket_content_after_take) * drip_interval)
     else
@@ -160,4 +163,4 @@ if drip_interval > 0 then
 end
 
 -- Return the current quota
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota_left }
+return { bucket_content_after_take, enough_tokens, redis_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota_left }

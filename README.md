@@ -326,11 +326,13 @@ if !erl_triggered // ERL wasn't triggered in this call, so we haven't identified
 Unless specified otherwise, the bucket will use the sliding window algorithm to refill the bucket. The way it works is, if the bucket is configured at a 100 tokens per second, it will refill 1 token every 10 milliseconds (1000ms / 100 tokens per second). 
 The same configuration under the fixed window algorithm will refill the bucket at the specified interval instead of granular. Following the previous example, if the bucket is configured at 100 tokens per second, it will refill 100 tokens every second.
 
-If you want to use fixed window on Take or TakeElevated, you can do so by setting the `fixed_window` property in the bucket configuration to `true` (default `false`). This will refill the bucket at the specified interval instead of granular.
+If you want to use fixed window algorithm on Take or TakeElevated, you can do so by setting the `fixed_window` property in the bucket configuration to `true` (default `false`). This will refill the bucket at the specified interval instead of granular.
 
-On top of that, you can use the `fixed_window` property in the `configOverride` parameter to safely activate/deactivate the new fixed_window algorithm from the client on-demand.
+On top of that, you can use the `fixed_window` property in the `configOverride` parameter to safely activate/deactivate the new fixed_window algorithm from the client on-demand. This parameter acts as a feature flag to safely deploy the change to produciton.
 
-The following table describes how the fixed window bucket configuration and the fixed window param interact to activate the fixed window algorithm:
+**This is an AND gate**, meaning that both the bucket configuration and the param must be set to `true` to activate the fixed window algorithm. If the param is not provided, it is interpreted as if the fixed_window parameter is true, hence the activation of the fixed window algorithm will depend on the configuration of the bucket.
+
+The following table describes how the fixed window bucket configuration and the fixed window param interact to activate the fixed window algorithm.
 
 | fixed_window bucket config | fixed_window param | Fixed Window Enabled |
 |----------------------------|--------------------|----------------------|

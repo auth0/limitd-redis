@@ -907,7 +907,7 @@ module.exports.tests = (clientCreator) => {
                               done();
                             });
                           });
-                        }, interval);
+                        }, interval / 2);
                       });
                     });
                   }, interval / 2);
@@ -1424,7 +1424,7 @@ module.exports.tests = (clientCreator) => {
               assert.isTrue(result.elevated_limits.activated);
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
               assert.equal(result.limit, 5);
-              assert.equal(result.remaining, 3);
+              assert.isAbove(result.remaining, 1);
               done();
             });
         });

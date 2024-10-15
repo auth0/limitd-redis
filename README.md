@@ -322,19 +322,20 @@ if erl_triggered // quota left in the quotaKey bucket
 if !erl_triggered // ERL wasn't triggered in this call, so we haven't identified the remaining quota.
 ```
 
-### Use of fixed window on Take and TakeElevated
-Unless specified otherwise, the bucket will use the sliding window algorithm to refill the bucket. The way it works is, if the bucket is configured at a 100 tokens per second, it will refill 1 token every 10 milliseconds (1000ms / 100 tokens per second). 
-The same configuration under the fixed window algorithm will refill the bucket at the specified interval instead of granular. Following the previous example, if the bucket is configured at 100 tokens per second, it will refill 100 tokens every second.
+### Use of fixed window in Take and TakeElevated
+By default, the bucket uses the sliding window algorithm to refill tokens. For example, if the bucket is set to 100 tokens per second, it refills 1 token every 10 milliseconds (1000ms / 100 tokens per second).  
 
-If you want to use fixed window algorithm on Take or TakeElevated, you can do so by setting the `fixed_window` property in the bucket configuration to `true` (default `false`). This will refill the bucket at the specified interval instead of granular.
+With the fixed window algorithm, the bucket refills at the specified interval. For instance, if set to 100 tokens per second, it refills 100 tokens every second.
 
-On top of that, you can use the `fixed_window` property in the `configOverride` parameter to safely activate/deactivate the new fixed_window algorithm from the client on-demand. This parameter acts as a feature flag to safely deploy the change to produciton.
+To use the fixed window algorithm on `Take` or `TakeElevated`, set the `fixed_window` property in the bucket configuration to `true` (default is `false`). This will refill the bucket at the specified interval
 
-**This is an AND gate**, meaning that both the bucket configuration and the param must be set to `true` to activate the fixed window algorithm. If the param is not provided, it is interpreted as if the fixed_window parameter is true, hence the activation of the fixed window algorithm will depend on the configuration of the bucket.
+Additionally, you can use the `fixed_window` flag in the configOverride parameter. This acts as a feature flag for safe deployment, but it cannot activate the fixed window algorithm if the bucket configuration is set to false.
+
+Both the bucket configuration and the configOverride parameter must be set to true to activate the fixed window algorithm. If the configOverride parameter is not provided, it defaults to true, and the activation depends on the bucket configuration.
 
 The following table describes how the fixed window bucket configuration and the fixed window param interact to activate the fixed window algorithm.
 
-| fixed_window bucket config | fixed_window param | Fixed Window Enabled |
+| fixed_window bucket config | fixed_window param | Fixed Window Enabled | 
 |----------------------------|--------------------|----------------------|
 | true                       | true               | Yes                  |
 | true                       | false              | No                   |
@@ -342,6 +343,9 @@ The following table describes how the fixed window bucket configuration and the 
 | false                      | true               | No                   |
 | false                      | false              | No                   |
 | false                      | not provided       | No                   |
+| not provided               | true               | No                   |
+| not provided               | false              | No                   |
+| not provided               | not provided       | No                   |
 
 
 ## PUT

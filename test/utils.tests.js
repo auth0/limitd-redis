@@ -425,5 +425,10 @@ describe('utils', () => {
       const result = isFixedWindowEnabled(false, undefined);
       assert.isFalse(result);
     });
+
+    it('should return false when fixed_window bucket config is not present and fixed_window param is true', () => {
+      const result = isFixedWindowEnabled(undefined, true);
+      assert.isFalse(result);
+    });
   });
 });

@@ -174,7 +174,6 @@ describe('when using LimitDB', () => {
           }
 
           if (err) {
-            console.log(err, err.message);
             done(err);
           }
         });

@@ -3,12 +3,13 @@ local bucket_size = tonumber(ARGV[2])
 local tokens_to_take = tonumber(ARGV[3])
 local ttl = tonumber(ARGV[4])
 local drip_interval = tonumber(ARGV[5])
-local erl_tokens_per_ms = tonumber(ARGV[6])
-local erl_bucket_size = tonumber(ARGV[7])
-local erl_activation_period_seconds = tonumber(ARGV[8])
-local erl_quota = tonumber(ARGV[9])
-local erl_quota_expiration_epoch = tonumber(ARGV[10])
-local erl_configured_for_bucket = tonumber(ARGV[11]) == 1
+local fixed_window         = tonumber(ARGV[6])
+local erl_tokens_per_ms = tonumber(ARGV[7])
+local erl_bucket_size = tonumber(ARGV[8])
+local erl_activation_period_seconds = tonumber(ARGV[9])
+local erl_quota = tonumber(ARGV[10])
+local erl_quota_expiration_epoch = tonumber(ARGV[11])
+local erl_configured_for_bucket = tonumber(ARGV[12]) == 1
 
 -- the key to use for pulling last bucket state from redis
 local lastBucketStateKey = KEYS[1]
@@ -29,12 +30,36 @@ end
 -- get current time from redis, to be used in new bucket size calculations later
 local current_time = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000
+local redis_timestamp_ms = current_timestamp_ms
+
+local function adjustCurrentTimestampForFixedWindow(current_timestamp_ms)
+    if current[1] and tokens_per_ms then
+        -- drip bucket
+        local last_drip = current[1]
+
+        if fixed_window > 0 then
+            -- fixed window for granting new tokens
+            local interval_correction = (current_timestamp_ms - last_drip) % fixed_window
+            current_timestamp_ms = current_timestamp_ms - interval_correction
+        end
+
+        return current_timestamp_ms
+    end
+    return current_timestamp_ms
+end
 
 local function calculateNewBucketContent(current, tokens_per_ms, bucket_size, current_timestamp_ms)
     if current[1] and tokens_per_ms then
         -- drip bucket
         local last_drip = current[1]
         local content = current[2]
+
+        if fixed_window > 0 then
+            -- fixed window for granting new tokens
+            local interval_correction = (current_timestamp_ms - last_drip) % fixed_window
+            current_timestamp_ms = current_timestamp_ms - interval_correction
+        end
+
         local delta_ms = math.max(current_timestamp_ms - last_drip, 0)
         local drip_amount = delta_ms * tokens_per_ms
         return math.min(content + drip_amount, bucket_size)
@@ -70,6 +95,9 @@ local function takeERLQuota(erl_quota_key, erl_quota, erl_quota_expiration_epoch
     redis.call('SET', erl_quota_key, previously_used_quota+1, 'PXAT', string.format('%.0f', erl_quota_expiration_epoch))
     return previously_used_quota
 end
+
+-- adjust current timestamp for fixed window
+current_timestamp_ms = adjustCurrentTimestampForFixedWindow(current_timestamp_ms)
 
 -- Enable verbatim replication to ensure redis sends script's source code to all masters
 -- managing the sharded database in a clustered deployment.
@@ -124,7 +152,9 @@ redis.call('HMSET', lastBucketStateKey,
 redis.call('EXPIRE', lastBucketStateKey, ttl)
 
 local reset_ms = 0
-if drip_interval > 0 then
+if fixed_window > 0 then
+    reset_ms = current_timestamp_ms + fixed_window
+elseif drip_interval > 0 then
     if is_erl_activated == 1 then
         reset_ms = math.ceil(current_timestamp_ms + (erl_bucket_size - bucket_content_after_take) * drip_interval)
     else
@@ -133,4 +163,4 @@ if drip_interval > 0 then
 end
 
 -- Return the current quota
-return { bucket_content_after_take, enough_tokens, current_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota_left }
+return { bucket_content_after_take, enough_tokens, redis_timestamp_ms, reset_ms, erl_triggered, is_erl_activated, erl_quota_left }

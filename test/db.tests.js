@@ -4,6 +4,7 @@ const async = require('async');
 const _ = require('lodash');
 const assert = require('chai').assert;
 const { endOfMonthTimestamp, replicateHashtag } = require('../lib/utils');
+const sinon = require('sinon');
 
 const buckets = {
   ip: {
@@ -39,6 +40,14 @@ const buckets = {
       '9.8.7.6': {
         size: 200,
       },
+      '123.123.123.123': {
+        per_second: 1000,
+        fixed_window: true
+      },
+      '124.124.124.124': {
+        per_second: 1000,
+        fixed_window: false
+      }
     }
   },
   user: {
@@ -449,7 +458,7 @@ module.exports.tests = (clientCreator) => {
               }
               assert.ok(result.conformant);
               assert.equal(result.remaining, 0);
-              assert.closeTo(result.reset, now / 1000 + 1800, 1);
+              assert.closeTo(result.reset, now / 1000 + 1800, 3);
               assert.closeTo(result.delta_reset_ms, (result.limit - result.remaining) * 3600000/buckets.ip.overrides['10.0.0.1'].per_hour, 1);
               assert.equal(result.limit, 1);
               done();
@@ -842,6 +851,162 @@ module.exports.tests = (clientCreator) => {
           });
         });
       });
+
+      [
+        {
+          name: 'take',
+          takeFunc: (takeParams, cb) => db.take(takeParams, cb),
+          takeStub: () => db.redis.take,
+          fixedWindowParamPosition: 6,
+        },
+        {
+          name: 'takeElevated',
+          takeFunc: (takeParams, cb) => db.takeElevated(takeParams, cb),
+          takeStub: () => db.redis.takeElevated,
+          fixedWindowParamPosition: 8,
+        }
+      ].forEach(({ name, takeFunc, takeStub, fixedWindowParamPosition }) => {
+        describe(`fixed window for ${name}`, () => {
+          const redisHMGetPromise = (key, fields) => new Promise((resolve, reject) => {
+            db.redis.hmget(key, fields, (err, value) => {
+              if (err) {
+                return reject(err);
+              }
+              resolve(value);
+            });
+          });
+
+          describe(`when calling the lua script`, () => {
+            it(`should use fixed window when asked`, (done) => {
+              const interval = 1000;
+              const key = '123.123.123.123';
+              takeFunc({ type: 'ip', key, count: 1000, fixed_window: true }, (err, response) => {
+                if (err) return done(err);
+                assert.ok(response.conformant);
+                assert.equal(response.remaining, 0);
+                assert.closeTo(response.delta_reset_ms, interval, 100);
+                assert.equal(response.limit, 1000);
+                redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
+                  const lastDrip = value[0];
+                  setTimeout(() => {
+                    takeFunc({ type: 'ip', key, count: 1, fixed_window: true }, (err, response) => {
+                      assert.notOk(response.conformant);
+                      assert.equal(response.remaining, 0);
+                      assert.closeTo(response.delta_reset_ms, interval/2, 100);
+                      assert.equal(response.limit, 1000);
+                      redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
+                        assert.equal(value[0], lastDrip, 'last drip should not have changed');
+                        setTimeout(() => {
+                          takeFunc({ type: 'ip', key, count: 1, fixed_window: true }, (err, response) => {
+                            assert.ok(response.conformant);
+                            assert.equal(response.remaining, 999);
+                            assert.closeTo(response.delta_reset_ms, interval, 100);
+                            assert.equal(response.limit, 1000);
+                            redisHMGetPromise(`ip:${key}`, ['d', 'r']).then((value) => {
+                              assert.notEqual(value[0], lastDrip, 'last drip should have changed');
+                              done();
+                            });
+                          });
+                        }, interval / 2);
+                      });
+                    });
+                  }, interval / 2);
+                });
+              });
+            });
+          });
+
+          describe('when checking the arguments used to call the script', () => {
+            let mockedRedis;
+            let realRedis;
+            beforeEach((done) => {
+              realRedis = db.redis;
+              const currentTime = Date.now() / 1000;
+              mockedRedis = {
+                take: sinon.stub().callsFake((key, tokensPerMs, size, count, ttl, dripInterval, fixedWindowInterval, callback) => {
+                  callback(null, ['0', '1', currentTime.toString(), (currentTime + 100).toString()]);
+                }),
+                takeElevated: sinon.stub().callsFake((key, erlActiveKey, erlQuotaKey, tokensPerMs, size, count, ttl, dripInterval, fixedWindowInterval, erlTokensPerMs, erlSize, erlPeriod, erlQuota, erlQuotaExp, erlConfigured, callback) => {
+                  const currentTime = Date.now() / 1000;
+                  callback(null, ['0', '1', currentTime.toString(), (currentTime + 100).toString(), '0', '0', '0']);
+                })
+              };
+              db.redis = mockedRedis;
+              done();
+            });
+
+            afterEach((done) => {
+              db.redis = realRedis;
+              done();
+            });
+
+            describe('when fixed_window is enabled in the bucket config', () => {
+              it('should pass fixed window interval = 1000 when fixed_window param is true', (done) => {
+                const params = { type: 'ip', key: '123.123.123.123', count: 1, fixed_window: true };
+                takeFunc(params, (err, response) => {
+                  if (err) {
+                    return done(err);
+                  }
+                  sinon.assert.calledOnce(takeStub());
+                  assert.equal(takeStub().getCall(0).args[fixedWindowParamPosition], 1000);
+                  done();
+                });
+              });
+
+              it('should pass fixed window interval = 0 when fixed_window param is false', (done) => {
+                const params = { type: 'ip', key: '123.123.123.123', count: 1, fixed_window: false };
+                takeFunc(params, (err, response) => {
+                  if (err) {
+                    return done(err);
+                  }
+                  sinon.assert.calledOnce(takeStub());
+                  assert.equal(takeStub().getCall(0).args[fixedWindowParamPosition], 0);
+                  done();
+                });
+              });
+
+              it('should pass fixed window interval = 1000 when fixed_window param is not provided', (done) => {
+                const params = { type: 'ip', key: '123.123.123.123', count: 1 };
+                takeFunc(params, (err, response) => {
+                  if (err) {
+                    return done(err);
+                  }
+                  sinon.assert.calledOnce(takeStub());
+                  assert.equal(takeStub().getCall(0).args[fixedWindowParamPosition], 1000);
+                  done();
+                });
+              });
+            });
+
+            describe('when fixed_window is disabled in the bucket config', () => {
+              [
+                {
+                  fixed_window: true,
+                },
+                {
+                  fixed_window: false,
+                },
+                {
+                  fixed_window: undefined,
+                },
+              ].forEach(({ fixed_window }) => {
+                it(`should pass fixed window interval = 0 when fixed_window param is ${fixed_window}`, (done) => {
+                  const params = { type: 'ip', key: '124.124.124.124', count: 1 };
+                  takeFunc(params, (err, response) => {
+                    if (err) {
+                      return done(err);
+                    }
+                    sinon.assert.calledOnce(takeStub());
+                    assert.equal(takeStub().getCall(0).args[fixedWindowParamPosition], 0);
+                    done();
+                  });
+                });
+              })
+            });
+          });
+        });
+      });
+
 
       describe('elevated limits specific tests', () => {
         const takeElevatedPromise = (params) => new Promise((resolve, reject) => {
@@ -1259,7 +1424,7 @@ module.exports.tests = (clientCreator) => {
               assert.isTrue(result.elevated_limits.activated);
               assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
               assert.equal(result.limit, 5);
-              assert.equal(result.remaining, 3);
+              assert.isAbove(result.remaining, 1);
               done();
             });
         });

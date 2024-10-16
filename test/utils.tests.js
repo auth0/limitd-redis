@@ -5,7 +5,7 @@ const chaiExclude = require('chai-exclude');
 chai.use(chaiExclude);
 const assert = chai.assert;
 
-const { getERLParams, calculateQuotaExpiration, normalizeType, resolveElevatedParams, replicateHashtag } = require('../lib/utils');
+const { getERLParams, calculateQuotaExpiration, normalizeType, resolveElevatedParams, replicateHashtag, isFixedWindowEnabled } = require('../lib/utils');
 const { set, reset } = require('mockdate');
 const { expect } = require('chai');
 
@@ -393,5 +393,42 @@ describe('utils', () => {
         assert.equal(result, `${elevatedBucketName}:{{${key}}`);
       });
     });
-  })
+  });
+
+  describe('isFixedWindowEnabled', () => {
+    it('should return true when fixed_window bucket config is true and fixed_window param is true', () => {
+      const result = isFixedWindowEnabled(true, true);
+      assert.isTrue(result);
+    });
+
+    it('should return false when fixed_window bucket config is true and fixed_window param is false', () => {
+      const result = isFixedWindowEnabled(true, false);
+      assert.isFalse(result);
+    });
+
+    it('should return true when fixed_window bucket config is true and fixed_window param is not provided', () => {
+      const result = isFixedWindowEnabled(true, undefined);
+      assert.isTrue(result);
+    });
+
+    it('should return false when fixed_window bucket config is false and fixed_window param is true', () => {
+      const result = isFixedWindowEnabled(false, true);
+      assert.isFalse(result);
+    });
+
+    it('should return false when fixed_window bucket config is false and fixed_window param is false', () => {
+      const result = isFixedWindowEnabled(false, false);
+      assert.isFalse(result);
+    });
+
+    it('should return false when fixed_window bucket config is false and fixed_window param is not provided', () => {
+      const result = isFixedWindowEnabled(false, undefined);
+      assert.isFalse(result);
+    });
+
+    it('should return false when fixed_window bucket config is not present and fixed_window param is true', () => {
+      const result = isFixedWindowEnabled(undefined, true);
+      assert.isFalse(result);
+    });
+  });
 });

@@ -20,6 +20,7 @@ It's a fork from [LimitDB](https://github.com/limitd/limitdb).
 - [Breaking changes from `Limitdb`](#breaking-changes-from-limitdb)
 - [TAKE](#take)
 - [TAKEELEVATED](#takeelevated)
+  - [Use of fixed window on Take and TakeElevated](#use-of-fixed-window-on-take-and-takeelevated)
 - [PUT](#put)
 - [Overriding Configuration at Runtime](#overriding-configuration-at-runtime)
    - [Overriding Configuration at Runtime with ERL](#overriding-configuration-at-runtime-with-erl)
@@ -82,6 +83,7 @@ const limitd = new Limitd({
 - `unlimited` (boolean = false): unlimited requests (skip take).
 - `skip_n_calls` (number): take will go to redis every `n` calls instead of going in every take.
 - `elevated_limits` (object): elevated limits configuration that kicks in when the bucket is empty. Please refer to the [ERL section](#ERL-Elevated-Rate-Limits) for more details.
+- `fixed_window` (boolean = false): refill at specified interval instead of granular.
 
 You can also define your rates using `per_second`, `per_minute`, `per_hour`, `per_day`. So `per_second: 1` is equivalent to `per_interval: 1, interval: 1000`.
 
@@ -319,6 +321,32 @@ Example of interpretation:
 if erl_triggered // quota left in the quotaKey bucket
 if !erl_triggered // ERL wasn't triggered in this call, so we haven't identified the remaining quota.
 ```
+
+### Use of fixed window in Take and TakeElevated
+By default, the bucket uses the sliding window algorithm to refill tokens. For example, if the bucket is set to 100 tokens per second, it refills 1 token every 10 milliseconds (1000ms / 100 tokens per second).  
+
+With the fixed window algorithm, the bucket refills at the specified interval. For instance, if set to 100 tokens per second, it refills 100 tokens every second.
+
+To use the fixed window algorithm on `Take` or `TakeElevated`, set the `fixed_window` property in the bucket configuration to `true` (default is `false`). This will refill the bucket at the specified interval
+
+Additionally, you can use the `fixed_window` flag in the configOverride parameter. This acts as a feature flag for safe deployment, but it cannot activate the fixed window algorithm if the bucket configuration is set to false.
+
+Both the bucket configuration and the configOverride parameter must be set to true to activate the fixed window algorithm. If the configOverride parameter is not provided, it defaults to true, and the activation depends on the bucket configuration.
+
+The following table describes how the fixed window bucket configuration and the fixed window param interact to activate the fixed window algorithm.
+
+| fixed_window bucket config | fixed_window param | Fixed Window Enabled | 
+|----------------------------|--------------------|----------------------|
+| true                       | true               | Yes                  |
+| true                       | false              | No                   |
+| true                       | not provided       | Yes                  |
+| false                      | true               | No                   |
+| false                      | false              | No                   |
+| false                      | not provided       | No                   |
+| not provided               | true               | No                   |
+| not provided               | false              | No                   |
+| not provided               | not provided       | No                   |
+
 
 ## PUT
 

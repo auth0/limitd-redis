@@ -2149,6 +2149,45 @@ module.exports.tests = (clientCreator) => {
           });
         });
       });
+
+      describe('when using overrides', () => {
+        const testBuckets = {
+          ip: {
+            size: 10,
+            per_second: 5,
+            overrides: {
+              '127.0.0.1': {
+                per_second: 100
+              }
+            },
+          }
+        }
+
+        const testCases = [
+          { description: 'when the key contains curly braces', key: '{127.0.0.1}', expectedLimit: 100 },
+          { description: 'when the key does not contain curly braces', key: '127.0.0.1', expectedLimit: 100 },
+        ];
+        testCases.forEach(({ description, key, expectedLimit }) => {
+          describe(description, () => {
+            it('should apply the override', (done) => {
+              const takeParams = { type: 'ip', key };
+
+              db.configurateBuckets(testBuckets);
+
+              db.take(takeParams, (err, result) => {
+                if (err) {
+                  return done(err);
+                }
+
+                assert.ok(result.conformant);
+                assert.equal(result.remaining, expectedLimit - 1);
+                assert.equal(result.limit, expectedLimit);
+                done();
+              });
+            });
+          });
+        });
+      });
     });
 
     describe('PUT', () => {

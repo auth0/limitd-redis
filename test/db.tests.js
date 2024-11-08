@@ -5,6 +5,7 @@ const _ = require('lodash');
 const assert = require('chai').assert;
 const { endOfMonthTimestamp, replicateHashtag } = require('../lib/utils');
 const sinon = require('sinon');
+const { exec } = require('child_process');
 
 const buckets = {
   ip: {
@@ -120,7 +121,7 @@ const elevatedBuckets = {
 
 module.exports.buckets = buckets;
 module.exports.elevatedBuckets = elevatedBuckets;
-module.exports.tests = (clientCreator) => {
+module.exports.tests = (clientCreator, opts) => {
   describe('LimitDBRedis', () => {
     let db;
     const prefix = 'tests:'
@@ -140,6 +141,76 @@ module.exports.tests = (clientCreator) => {
           err = undefined;
         }
         done(err);
+      });
+    });
+
+    describe('KeepAlive', () => {
+      const checkSocketOption = (portPairs, option, expectedValue, delta, done) => {
+        const pid = process.pid;
+        const command = `lsof -a -p ${pid} -i 4 -T f`;
+
+        exec(command, (error, stdout, stderr) => {
+          if (error) {
+            return done(error);
+          }
+          if (stderr) {
+            return done(new Error(stderr));
+          }
+
+          const keepAliveOption = stdout
+            .split('\n')
+            .find(line =>
+              portPairs.some(portPair =>
+                line.includes(`:${portPair.localPort}`)
+                && line.includes(`:${portPair.remotePort}`)
+              )
+            );
+          assert.isNotNull(keepAliveOption, `no entry found for port ${portPairs}: ${stdout}`);
+          assert.notEqual(keepAliveOption, undefined, `no entry found for port ${portPairs}: ${stdout}`);
+          assert.include(keepAliveOption, option, `${option} option not found: ${keepAliveOption}`);
+
+          const keepAliveValue = parseInt(keepAliveOption.match(new RegExp(`${option}=(\\d+)`))[1], 10);
+          assert.isAtLeast(keepAliveValue, expectedValue - delta, `${option} is lesser than expected`);
+          assert.isAtMost(keepAliveValue, expectedValue + delta, `${option} is greater than expected`);
+
+          done();
+        });
+      };
+
+      it('should set SO=KEEPALIVE to 10000 by default', (done) => {
+        const ports = [];
+        if (opts.clusterNodes) {
+          Object.values(db.redis.connectionPool.nodes.all).forEach(node => {
+            ports.push({ localPort: node.stream.localPort, remotePort: node.stream.remotePort });
+          });
+        } else {
+          ports.push({ localPort: db.redis.stream.localPort, remotePort: db.redis.stream.remotePort });
+        }
+        checkSocketOption(ports, 'SO=KEEPALIVE', 10000, 10, done);
+      });
+
+      describe('when setting keepAlive option', () => {
+        const keepAliveValue = 5000;
+        beforeEach((done) => {
+          db.close(() => {
+            db = clientCreator({ buckets, prefix: prefix, keepAlive: keepAliveValue });
+            db.once('ready', () => done());
+          });
+        });
+
+        it('should set SO=KEEPALIVE to the value specified in the constructor config', (done) => {
+          const ports = [];
+          if (opts.clusterNodes) {
+            Object.values(db.redis.connectionPool.nodes.all)
+              .filter(node => node.status === 'ready')
+              .forEach(node => {
+                ports.push({ localPort: node.stream.localPort, remotePort: node.stream.remotePort });
+              });
+          } else {
+            ports.push({ localPort: db.redis.stream.localPort, remotePort: db.redis.stream.remotePort });
+          }
+          checkSocketOption(ports, 'SO=KEEPALIVE', keepAliveValue, 10, done);
+        });
       });
     });
 

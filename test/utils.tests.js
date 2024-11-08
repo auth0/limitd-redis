@@ -5,7 +5,9 @@ const chaiExclude = require('chai-exclude');
 chai.use(chaiExclude);
 const assert = chai.assert;
 
-const { getERLParams, calculateQuotaExpiration, normalizeType, resolveElevatedParams, replicateHashtag, isFixedWindowEnabled } = require('../lib/utils');
+const { getERLParams, calculateQuotaExpiration, normalizeType, resolveElevatedParams, replicateHashtag, isFixedWindowEnabled,
+  removeHashtag
+} = require('../lib/utils');
 const { set, reset } = require('mockdate');
 const { expect } = require('chai');
 
@@ -429,6 +431,38 @@ describe('utils', () => {
     it('should return false when fixed_window bucket config is not present and fixed_window param is true', () => {
       const result = isFixedWindowEnabled(undefined, true);
       assert.isFalse(result);
+    });
+  });
+
+  describe('removeHashtag', () => {
+    it('should remove curly braces from a key with both curly braces', () => {
+      const key = '{127.0.0.1}';
+      const result = removeHashtag(key);
+      expect(result).to.equal('127.0.0.1');
+    });
+
+    it('should return the key unchanged if it does not have curly braces', () => {
+      const key = '127.0.0.1';
+      const result = removeHashtag(key);
+      expect(result).to.equal(key);
+    });
+
+    it('should return the key unchanged if it only has the left curly brace', () => {
+      const key = '{127.0.0.1';
+      const result = removeHashtag(key);
+      expect(result).to.equal(key);
+    });
+
+    it('should return the key unchanged if it only has the right curly brace', () => {
+      const key = '127.0.0.1}';
+      const result = removeHashtag(key);
+      expect(result).to.equal(key);
+    });
+
+    it('should remove the outermost curly braces if the key has nested curly braces', () => {
+      const key = '{{127.0.0.1}}';
+      const result = removeHashtag(key);
+      expect(result).to.equal('{127.0.0.1}');
     });
   });
 });

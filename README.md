@@ -245,6 +245,8 @@ Examples:
 | Curly brace within hashtag | `limitd.takeElevated('bucketName', '{{some-key}')`            | `{some-key`               | `bucketName:{{some-key}`            | `ERLActiveKey:{{some-key}`               | `ERLQuotaKey:{{some-key}`               |
 | Empty hashtag              | `limitd.takeElevated('bucketName', '{}{some-key}')`           | `bucketName:{}{some-key}` | `bucketName:{}{some-key}`           | `ERLActiveKey:{bucketName:{}{some-key}}` | `ERLQuotaKey:{bucketName:{}{some-key}}` |
 
+To address the issue where overrides typically target keys without the hashtag, we sanitize the received key by removing the hashtag before looking for overrides. 
+If any overrides are found, they will be applied accordingly.
 
 ## Breaking changes from `Limitdb`
 

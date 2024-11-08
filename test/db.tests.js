@@ -1668,6 +1668,8 @@ module.exports.tests = (clientCreator) => {
         });
 
         describe('overrides', () => {
+          const hashtaggedERLIsActiveKey = replicateHashtag(`${bucketName}:${key}`, prefix, erl_is_active_key)
+
           it('should use elevated_limits config override when provided', (done) => {
             const bucketName = 'bucket_with_no_elevated_limits_config';
             const erl_is_active_key = 'some_erl_active_identifier';
@@ -1720,6 +1722,114 @@ module.exports.tests = (clientCreator) => {
                 });
               });
           });
+
+          describe('when base override is greater than erl', () => {
+            const bucketConfig = {
+              size: 10,
+              per_minute: 10,
+              elevated_limits: {
+                size: 20,
+                per_minute: 20,
+              },
+              overrides: {
+                [[key]]: {
+                  size: 700,
+                  per_minute: 700,
+                },
+              },
+            };
+
+            it('should not trigger ERL when bucket is exhausted', (done) => {
+              db.configurateBucket(bucketName, bucketConfig);
+
+              const params = {
+                type: bucketName,
+                key: key,
+                count: 700,
+                elevated_limits: {
+                  erl_is_active_key: erl_is_active_key,
+                  erl_quota_key: erl_quota_key,
+                  erl_activation_period_seconds: 900,
+                  quota_per_calendar_month: 10
+                },
+              };
+
+              takeElevatedPromise(params)
+                .then((result) => {
+                  assert.isTrue(result.conformant);
+                  assert.isFalse(result.elevated_limits.triggered);
+                  assert.isFalse(result.elevated_limits.activated);
+                  assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
+                  assert.equal(result.remaining, 0);
+                })
+                .then(() => takeElevatedPromise({ ...params, count: 1 }))
+                .then((result) => {
+                  assert.isFalse(result.conformant);
+                  assert.isFalse(result.elevated_limits.triggered);
+                  assert.isFalse(result.elevated_limits.activated);
+                  assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
+                  assert.equal(result.remaining, 0);
+                })
+                .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
+                .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 0))
+                .then(done);
+            });
+          });
+
+          describe('when elevated limits is greater than the override', () => {
+            const bucketConfig = {
+              size: 10,
+              per_minute: 10,
+              elevated_limits: {
+                size: 20,
+                per_minute: 20,
+              },
+              overrides: {
+                [[key]]: {
+                  size: 15,
+                  per_minute: 15,
+                },
+              },
+            };
+
+            it('should trigger ERL when bucket is exhausted', (done) => {
+              db.configurateBucket(bucketName, bucketConfig);
+
+              const params = {
+                type: bucketName,
+                key: key,
+                count: 15,
+                elevated_limits: {
+                  erl_is_active_key: erl_is_active_key,
+                  erl_quota_key: erl_quota_key,
+                  erl_activation_period_seconds: 900,
+                  quota_per_calendar_month: 10
+                },
+              };
+
+              takeElevatedPromise(params)
+                .then((result) => {
+                  assert.isTrue(result.conformant);
+                  assert.isFalse(result.elevated_limits.triggered);
+                  assert.isFalse(result.elevated_limits.activated);
+                  assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
+                  assert.equal(result.remaining, 0);
+                })
+                .then(() => takeElevatedPromise({ ...params, count: 1 }))
+                .then((result) => {
+                  assert.isTrue(result.conformant);
+                  assert.isTrue(result.elevated_limits.triggered);
+                  assert.isTrue(result.elevated_limits.activated);
+                  assert.isTrue(result.elevated_limits.erl_configured_for_bucket)
+                  assert.equal(result.remaining, 4);
+                })
+                .then(() => db.redis.scan(0, ))
+                .then(() => redisExistsPromise(hashtaggedERLIsActiveKey))
+                .then((erlIsActiveExists) => assert.equal(erlIsActiveExists, 1))
+                .then(done);
+            });
+          });
+
           describe('should use config override when elevated_limits is not provided and erl is active for the given key', () => {
             const tests = [
               {
@@ -2146,6 +2256,45 @@ module.exports.tests = (clientCreator) => {
               .then(() => redisGetPromise(hashtaggedERLQuotaKey))
               .then((erl_quota_keyValue) => assert.equal(erl_quota_keyValue, 1))
               .then(() => done());
+          });
+        });
+      });
+
+      describe('when using overrides', () => {
+        const testBuckets = {
+          ip: {
+            size: 10,
+            per_second: 5,
+            overrides: {
+              '127.0.0.1': {
+                per_second: 100
+              }
+            },
+          }
+        }
+
+        const testCases = [
+          { description: 'when the key contains curly braces', key: '{127.0.0.1}', expectedLimit: 100 },
+          { description: 'when the key does not contain curly braces', key: '127.0.0.1', expectedLimit: 100 },
+        ];
+        testCases.forEach(({ description, key, expectedLimit }) => {
+          describe(description, () => {
+            it('should apply the override', (done) => {
+              const takeParams = { type: 'ip', key };
+
+              db.configurateBuckets(testBuckets);
+
+              db.take(takeParams, (err, result) => {
+                if (err) {
+                  return done(err);
+                }
+
+                assert.ok(result.conformant);
+                assert.equal(result.remaining, expectedLimit - 1);
+                assert.equal(result.limit, expectedLimit);
+                done();
+              });
+            });
           });
         });
       });

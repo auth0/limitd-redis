@@ -28,6 +28,7 @@
     "eslint": "^6.1.0",
     "mocha": "^5.2.0",
     "mockdate": "^3.0.5",
+    "net-keepalive": "^4.0.10",
     "nyc": "^14.1.1",
     "sinon": "^19.0.2",
     "sockopt": "^2.0.1",

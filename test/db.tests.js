@@ -6,7 +6,7 @@ const assert = require('chai').assert;
 const { endOfMonthTimestamp, replicateHashtag } = require('../lib/utils');
 const sinon = require('sinon');
 const { exec } = require('child_process');
-const { getSockOptValue } = require('./testutils');
+const { getSockOptValue, assertIsNear, dropPackets } = require('./testutils');
 
 const buckets = {
   ip: {
@@ -146,53 +146,43 @@ module.exports.tests = (clientCreator, opts) => {
     });
 
     describe('KeepAlive', () => {
-      const assertSockOpt = (expected, delta, done) => (err, value) => {
-        if (err) {
-          done(err);
-        }
-        assert.isAtLeast(value, expected - delta, 'SO=KEEPALIVE is lesser than expected');
-        assert.isAtMost(value, expected + delta, 'SO=KEEPALIVE is greater than expected');
-        done();
-      };
+      describe('when keepalive is not specified and the socket stops responding', () => {
+        it('should try to reconnect after 10 seconds', (done) => {
+          let dropTime, reconnectTime;
+          db.redis.on('connect', () => {
+            if (reconnectTime) {
+              done();
+            }
+          });
 
+          db.redis.on('reconnecting', () => {
+            reconnectTime = Date.now();
+            assertIsNear(reconnectTime - dropTime, 10000, 100);
+          });
 
-      it('should set SO=KEEPALIVE to 10000 by default', (done) => {
-        let socket;
-        if (opts.clusterNodes) {
-          const node = Object.values(db.redis.connectionPool.nodes.all).find(node => node.status === 'ready');
-          if (!node) {
-            return done(new Error('No ready node found'));
-          }
-          socket = node.stream;
-        } else {
-          socket = db.redis.stream;
-        }
-        getSockOptValue(socket, 'SO=KEEPALIVE', assertSockOpt(10000, 10, done) );
+          dropPackets(db.redis.options.host);
+          dropTime = Date.now();
+        }).timeout(15000);
       });
 
-      describe('when setting keepAlive option', () => {
-        const keepAliveValue = 5000;
-        beforeEach((done) => {
-          db.close(() => {
-            db = clientCreator({ buckets, prefix: prefix, keepAlive: keepAliveValue });
-            db.once('ready', () => done());
-          });
-        });
-
-        it('should set SO=KEEPALIVE to the value specified in the constructor config', (done) => {
-          const ports = [];
-          let socket;
-          if (opts.clusterNodes) {
-            const node = Object.values(db.redis.connectionPool.nodes.all).find(node => node.status === 'ready');
-            if (!node) {
-              return done(new Error('No ready node found'));
+      describe('when keepalive is specific and the socket stops responding', () => {
+        it('should try to reconnect after the specified time', (done) => {
+          db = clientCreator({ buckets, prefix: prefix, keepalive: 5000 });
+          let dropTime, reconnectTime;
+          db.redis.on('connect', () => {
+            if (reconnectTime) {
+              done();
             }
-            socket = node.stream;
-          } else {
-            socket = db.redis.stream;
-          }
-          getSockOptValue(socket, 'SO=KEEPALIVE', assertSockOpt(5000, 10, done) );
-        });
+          });
+
+          db.redis.on('reconnecting', () => {
+            reconnectTime = Date.now();
+            assertIsNear(reconnectTime - dropTime, 10000, 100);
+          });
+
+          dropPackets(db.redis.options.host);
+          dropTime = Date.now();
+        }).timeout(10000);
       });
     });
 

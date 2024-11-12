@@ -12,7 +12,7 @@ describe('when using LimitDB', () => {
       return new LimitDB({ nodes: clusterNodes, buckets: {}, prefix: 'tests:', ..._.omit(params, ['uri']) });
     };
 
-    dbTests(clientCreator, { clusterNodes });
+    dbTests(clientCreator);
 
     describe('when using the clustered #constructor', () => {
       it('should allow setting username and password', (done) => {

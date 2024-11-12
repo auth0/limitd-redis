@@ -121,7 +121,7 @@ const elevatedBuckets = {
 
 module.exports.buckets = buckets;
 module.exports.elevatedBuckets = elevatedBuckets;
-module.exports.tests = (clientCreator, opts) => {
+module.exports.tests = (clientCreator) => {
   describe('LimitDBRedis', () => {
     let db;
     const prefix = 'tests:'

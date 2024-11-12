@@ -13,7 +13,7 @@ describe('when using LimitDB', () => {
       return new LimitDB({ uri: 'localhost:6379', buckets: {}, prefix: 'tests:', ..._.omit(params, ['nodes']) });
     };
 
-    dbTests(clientCreator, { uri: 'localhost:6379' } );
+    dbTests(clientCreator);
 
     describe('when using the standalone #constructor', () => {
       it('should emit error on failure to connect to redis', (done) => {

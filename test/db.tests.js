@@ -5,7 +5,6 @@ const _ = require('lodash');
 const assert = require('chai').assert;
 const { endOfMonthTimestamp, replicateHashtag } = require('../lib/utils');
 const sinon = require('sinon');
-const { exec } = require('child_process');
 
 const buckets = {
   ip: {

@@ -40,14 +40,14 @@ module.exports = (clientCreator) => {
         describe('when keepAlive is not set', () => {
           it('should set the keepAlive config to the default value', () => {
             client = clientCreator();
-            assert.equal(client.db.redis.options.keepAlive, 10000);
+            assert.equal(client.db.redis.options.keepAlive || client.db.redis.options.redisOptions.keepAlive, 10000);
           });
         });
 
         describe('when keepAlive is set', () => {
           it('should set the keepAlive config to the specified value', () => {
             client = clientCreator({ keepAlive: 5000 });
-            assert.equal(client.db.redis.options.keepAlive, 5000);
+            assert.equal(client.db.redis.options.keepAlive || client.db.redis.options.redisOptions.keepAlive, 5000);
           });
         });
       });

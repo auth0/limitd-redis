@@ -30,7 +30,6 @@
     "mockdate": "^3.0.5",
     "nyc": "^14.1.1",
     "sinon": "^19.0.2",
-    "sockopt": "^2.0.1",
     "toxiproxy-node-client": "^2.0.6"
   }
 }

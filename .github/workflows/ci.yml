@@ -40,7 +40,7 @@ jobs:
           wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
           unzip master.zip
           cd knetstat-master
-          make KSRC=linux-${{ matrix.kernel }}
+          make
 
       - name: Install node
         uses: actions/setup-node@v4

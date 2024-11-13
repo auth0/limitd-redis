@@ -26,18 +26,16 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential linux-headers-$(uname -r) wget unzip libelf-dev
 
-      - name: Download kernel sources
-        run: curl https://cdn.kernel.org/pub/linux/kernel/$(echo ${{ matrix.kernel }} | sed -E 's/([^.]+)[.].*/v\1.x/')/linux-${{ matrix.kernel }}.tar.xz | tar xJ
-
       - name: Configure kernel sources
         run: |
+          wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
+          unzip master.zip
+          cd knetstat-master
+          curl https://cdn.kernel.org/pub/linux/kernel/$(echo ${{ matrix.kernel }} | sed -E 's/([^.]+)[.].*/v\1.x/')/linux-${{ matrix.kernel }}.tar.xz | tar xJ
           cp /boot/config-$(uname -r) linux-${{ matrix.kernel }}/.config
           make -C linux-${{ matrix.kernel }} clean
           yes "" | make -C linux-${{ matrix.kernel }} oldconfig
           make -C linux-${{ matrix.kernel }} modules_prepare
-          wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
-          unzip master.zip
-          cd knetstat-master
           make KSRC=linux-${{ matrix.kernel }}
 
       - name: Install node

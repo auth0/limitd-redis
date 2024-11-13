@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         node-version: [18.x]
-        kernel: [6.5.0-1025-azure]
+        kernel: [6.5]
 
     steps:
       - name: Checkout
@@ -27,21 +27,20 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential linux-headers-$(uname -r) wget unzip libelf-dev
 
       - name: Download kernel sources
-        run: wget https://cl.archive.ubuntu.com/ubuntu/pool/main/l/linux-azure-6.5/linux-azure-6.5_6.5.0.orig.tar.gz && tar xvzf linux-azure-6.5_6.5.0.orig.tar.gz
+        run: curl https://cdn.kernel.org/pub/linux/kernel/$(echo ${{ matrix.kernel }} | sed -E 's/([^.]+)[.].*/v\1.x/')/linux-${{ matrix.kernel }}.tar.xz | tar xJ
 
       - name: Configure kernel sources
         run: |
-          cp /boot/config-$(uname -r) linux-6.5/.config
-          yes "" | make -C linux-6.5 oldconfig
-          make -C linux-6.5 modules_prepare
+          cp /boot/config-$(uname -r) linux-${{ matrix.kernel }}/.config
+          yes "" | make -C linux-${{ matrix.kernel }} oldconfig
+          make -C linux-${{ matrix.kernel }} modules_prepare
 
       - name: Install knetstat
         run: |
           wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
           unzip master.zip
           cd knetstat-master
-          make clean
-          make
+          make KSRC=linux-${{ matrix.kernel }}
 
       - name: Install node
         uses: actions/setup-node@v4

@@ -27,7 +27,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential linux-headers-$(uname -r) wget unzip libelf-dev
 
       - name: Download kernel sources
-        run: wget https://cl.archive.ubuntu.com/ubuntu/pool/main/l/linux-azure-6.5/linux-azure-6.5_6.5.0.orig.tar.gz | tar xvz
+        run: wget https://cl.archive.ubuntu.com/ubuntu/pool/main/l/linux-azure-6.5/linux-azure-6.5_6.5.0.orig.tar.gz && tar xvzf linux-azure-6.5_6.5.0.orig.tar.gz
 
       - name: Configure kernel sources
         run: |

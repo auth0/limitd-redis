@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         node-version: [18.x]
-        kernel: [5.15]
+        kernel: [6.5]
 
     steps:
       - name: Checkout
@@ -37,8 +37,8 @@ jobs:
           yes "" | make -C linux-${{ matrix.kernel }} oldconfig
           make -C linux-${{ matrix.kernel }} modules_prepare
           make KSRC=linux-${{ matrix.kernel }}
-          insmod knetstat.ko
-          lsmod | grep knetstat
+          sudo insmod knetstat.ko
+          sudo lsmod | grep knetstat
 
       - name: run knetstat
         run: cat /proc/net/tcpstat

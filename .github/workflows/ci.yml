@@ -16,11 +16,32 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [14.x, 16.x, 18.x, 20.x]
+        node-version: [18.x]
+        kernel: [6.5.0-1025-azure]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential linux-headers-$(uname -r) wget unzip libelf-dev
+
+      - name: Download kernel sources
+        run: wget https://cl.archive.ubuntu.com/ubuntu/pool/main/l/linux-azure-6.5/linux-azure-6.5_6.5.0.orig.tar.gz | tar xvz
+
+      - name: Configure kernel sources
+        run: |
+          cp /boot/config-$(uname -r) linux-6.5/.config
+          yes "" | make -C linux-6.5 oldconfig
+          make -C linux-6.5 modules_prepare
+
+      - name: Install knetstat
+        run: |
+          wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
+          unzip master.zip
+          cd knetstat-master
+          make clean
+          make KSRC=linux-6.5.0-1025-azure
 
       - name: Install node
         uses: actions/setup-node@v4
@@ -29,6 +50,7 @@ jobs:
 
       - name: install redis-cli
         run: sudo apt-get install redis-tools
+
 
       - name: Install dependencies
         run: npm install

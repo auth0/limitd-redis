@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         node-version: [18.x]
-        kernel: [6.5]
+        kernel: [5.15]
 
     steps:
       - name: Checkout
@@ -31,7 +31,9 @@ jobs:
           wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
           unzip master.zip
           cd knetstat-master
-          curl https://cdn.kernel.org/pub/linux/kernel/$(echo ${{ matrix.kernel }} | sed -E 's/([^.]+)[.].*/v\1.x/')/linux-${{ matrix.kernel }}.tar.xz | tar xJ
+#          curl https://cdn.kernel.org/pub/linux/kernel/$(echo ${{ matrix.kernel }} | sed -E 's/([^.]+)[.].*/v\1.x/')/linux-${{ matrix.kernel }}.tar.xz | tar xJ
+          apt install linux-source-${{ matrix.kernel }}
+          tar -C ./ -xvf /usr/src/linux-source-${{ matrix.kernel }}.tar.xz          
           cp /boot/config-$(uname -r) linux-${{ matrix.kernel }}/.config
           make -C linux-${{ matrix.kernel }} clean
           yes "" | make -C linux-${{ matrix.kernel }} oldconfig

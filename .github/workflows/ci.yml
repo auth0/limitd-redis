@@ -35,13 +35,10 @@ jobs:
           make -C linux-${{ matrix.kernel }} clean
           yes "" | make -C linux-${{ matrix.kernel }} oldconfig
           make -C linux-${{ matrix.kernel }} modules_prepare
-
-      - name: Install knetstat
-        run: |
           wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
           unzip master.zip
           cd knetstat-master
-          make
+          make KSRC=linux-${{ matrix.kernel }}
 
       - name: Install node
         uses: actions/setup-node@v4

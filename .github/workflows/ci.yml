@@ -41,7 +41,7 @@ jobs:
           unzip master.zip
           cd knetstat-master
           make clean
-          make KSRC=linux-6.5.0-1025-azure
+          make KSRC=linux-6.5
 
       - name: Install node
         uses: actions/setup-node@v4

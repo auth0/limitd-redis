@@ -9,7 +9,6 @@ It's a fork from [LimitDB](https://github.com/limitd/limitdb).
 - [Configure](#configure)
    - [Options available](#options-available)
    - [Buckets](#buckets)
-   - [Ping](#ping)
 - [Overrides](#overrides)
 - [ERL (Elevated Rate Limits)](#erl-elevated-rate-limits)
    - [Prerequisites](#prerequisites)
@@ -55,11 +54,6 @@ const limitd = new Limitd({
     }
   },
   prefix: 'test:',
-  ping: {
-    interval: 1000,
-    maxFailedAttempts: 5,
-    reconnectIfFailed: true
-  },
   username: 'username',
   password: 'password'
 });
@@ -71,9 +65,9 @@ const limitd = new Limitd({
 - `nodes` (array): [Redis Cluster Configuration](https://github.com/luin/ioredis#cluster).
 - `buckets` (object): Setup your bucket types.
 - `prefix` (string): Prefix keys in Redis.
-- `ping` (object): Configure ping to Redis DB.
 - `username` (string): Redis username. This is ignored if not in Cluster mode. Needs Redis >= v6.
 - `password` (string): Redis password.
+- `keepAlive` (number): TCP KeepAlive on the socket expressed in milliseconds. Set to a non-number value to disable keepAlive
 
 ### Buckets:
 
@@ -90,14 +84,6 @@ You can also define your rates using `per_second`, `per_minute`, `per_hour`, `pe
 If you omit `size`, limitdb assumes that `size` is the value of `per_interval`. So `size: 10, per_second: 10` is the same than `per_second: 10`.
 
 If you don't specify a filling rate with `per_interval` or any other `per_x`, the bucket is fixed and you have to manually reset it using `PUT`.
-
-### Ping:
-
-- `interval` (number): represents the time between two consecutive pings. Default: 3000.
-- `maxFailedAttempts` (number): is the allowed number of failed pings before declaring the connection as dead. Default: 5.
-- `reconnectIfFailed` (boolean): indicates whether we should try to reconnect is the connection is declared dead. Default: true.
-
-
 
 ## Overrides
 You can also define `overrides` inside your type definitions as follows:

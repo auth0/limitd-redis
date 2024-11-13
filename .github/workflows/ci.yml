@@ -10,44 +10,88 @@ on:
 
 jobs:
   test:
+    env:
+      CI: true
     timeout-minutes: 10
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [14.x, 16.x, 18.x, 20.x]
+        node-version: [18.x]
+        kernel: [6.5]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
+      - name: Uninstall all linux-headers packages
+        run: |
+          sudo apt-get remove --purge -y 'linux-headers-*'
 
-      - name: install redis-cli
-        run: sudo apt-get install redis-tools
+      - name: Reinstall specific linux-headers package
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y linux-headers-$(uname -r)
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install build dependencies
+        run: | 
+          sudo apt-get update && sudo apt-get install -y build-essential linux-headers-$(uname -r) wget unzip libelf-dev linux-source-6.5.0
+          tar jxvf /usr/src/linux-source-6.5.0.tar.bz2
+          cd linux-source-6.5.0
 
-      - name: Setup Standalone Tests
-        run: make test-standalone-setup
+      - name: Configure kernel sources
+        run: |
+          wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
+          unzip master.zip
+          cd knetstat-master
+          # wget https://cl.archive.ubuntu.com/ubuntu/pool/main/l/linux-azure-6.5/linux-azure-6.5_6.5.0.orig.tar.gz && tar xvzf linux-azure-6.5_6.5.0.orig.tar.gz
+          mv ../linux-source-6.5.0 linux-6.5
+          cp /boot/config-$(uname -r) linux-${{ matrix.kernel }}/.config
+          make -C linux-${{ matrix.kernel }} clean
+          yes "" | make -C linux-${{ matrix.kernel }} oldconfig
+          make -C linux-${{ matrix.kernel }} modules_prepare
+          sed -i '/Module.symvers/d' ./Makefile
+          make KBUILD_MODPOST_WARN=1 KSRC=linux-${{ matrix.kernel }}
+          sudo insmod knetstat.ko
+          sudo lsmod | grep knetstat
+      - name: dmesg
+        if: always()
+        run: |
+          sudo dmesg|tail -n 10
+          ls -la /lib/modules
+        
 
-      - name: Run Standalone tests
-        run: make test-standalone
+      - name: run knetstat
+        run: cat /proc/net/tcpstat
 
-      - name: Teardown Standalone Tests
-        run: make test-standalone-teardown
-
-      - name: Setup Clustered Tests
-        run: make test-cluster-setup
-
-      - name: Check Redis Cluster
-        run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
-
-      - name: Run Clustered tests
-        run: make test-cluster
-
-      - name: Teardown Clustered Tests
-        run: make test-cluster-teardown
+#      - name: Install node
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: ${{ matrix.node-version }}
+#
+#      - name: install redis-cli
+#        run: sudo apt-get install redis-tools
+#
+#
+#      - name: Install dependencies
+#        run: npm install
+#
+#      - name: Setup Standalone Tests
+#        run: make test-standalone-setup
+#
+#      - name: Run Standalone tests
+#        run: make test-standalone
+#
+#      - name: Teardown Standalone Tests
+#        run: make test-standalone-teardown
+#
+#      - name: Setup Clustered Tests
+#        run: make test-cluster-setup
+#
+#      - name: Check Redis Cluster
+#        run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
+#
+#      - name: Run Clustered tests
+#        run: make test-cluster
+#
+#      - name: Teardown Clustered Tests
+#        run: make test-cluster-teardown

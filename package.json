@@ -1,6 +1,6 @@
 {
   "name": "limitd-redis",
-  "version": "8.3.1",
+  "version": "8.4.0",
   "description": "A database client for limits on top of redis",
   "main": "index.js",
   "repository": {
@@ -28,8 +28,10 @@
     "eslint": "^6.1.0",
     "mocha": "^5.2.0",
     "mockdate": "^3.0.5",
+    "net-keepalive": "^4.0.10",
     "nyc": "^14.1.1",
     "sinon": "^19.0.2",
+    "sockopt": "^2.0.1",
     "toxiproxy-node-client": "^2.0.6"
   }
 }

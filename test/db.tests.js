@@ -5,6 +5,8 @@ const _ = require('lodash');
 const assert = require('chai').assert;
 const { endOfMonthTimestamp, replicateHashtag } = require('../lib/utils');
 const sinon = require('sinon');
+const { exec } = require('child_process');
+const { getSockOptValue, assertIsNear, dropPackets } = require('./testutils');
 
 const buckets = {
   ip: {
@@ -120,7 +122,7 @@ const elevatedBuckets = {
 
 module.exports.buckets = buckets;
 module.exports.elevatedBuckets = elevatedBuckets;
-module.exports.tests = (clientCreator) => {
+module.exports.tests = (clientCreator, opts) => {
   describe('LimitDBRedis', () => {
     let db;
     const prefix = 'tests:'
@@ -140,6 +142,47 @@ module.exports.tests = (clientCreator) => {
           err = undefined;
         }
         done(err);
+      });
+    });
+
+    describe('KeepAlive', () => {
+      describe('when keepalive is not specified and the socket stops responding', () => {
+        it('should try to reconnect after 10 seconds', (done) => {
+          let dropTime, reconnectTime;
+          db.redis.on('connect', () => {
+            if (reconnectTime) {
+              done();
+            }
+          });
+
+          db.redis.on('reconnecting', () => {
+            reconnectTime = Date.now();
+            assertIsNear(reconnectTime - dropTime, 10000, 100);
+          });
+
+          dropPackets(db.redis.options.host);
+          dropTime = Date.now();
+        }).timeout(15000);
+      });
+
+      describe('when keepalive is specific and the socket stops responding', () => {
+        it('should try to reconnect after the specified time', (done) => {
+          db = clientCreator({ buckets, prefix: prefix, keepalive: 5000 });
+          let dropTime, reconnectTime;
+          db.redis.on('connect', () => {
+            if (reconnectTime) {
+              done();
+            }
+          });
+
+          db.redis.on('reconnecting', () => {
+            reconnectTime = Date.now();
+            assertIsNear(reconnectTime - dropTime, 10000, 100);
+          });
+
+          dropPackets(db.redis.options.host);
+          dropTime = Date.now();
+        }).timeout(10000);
       });
     });
 

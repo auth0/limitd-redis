@@ -17,28 +17,48 @@ jobs:
     strategy:
       matrix:
         node-version: [18.x]
-        kernel: [6.1]
+        kernel: [6.5]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Uninstall all linux-headers packages
+        run: |
+          sudo apt-get remove --purge -y 'linux-headers-*'
+
+      - name: Reinstall specific linux-headers package
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y linux-headers-$(uname -r)
+
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential linux-headers-$(uname -r) wget unzip libelf-dev
+        run: | 
+          sudo apt-get update && sudo apt-get install -y build-essential linux-headers-$(uname -r) wget unzip libelf-dev linux-source-6.5.0
+          tar jxvf /usr/src/linux-source-6.5.0.tar.bz2
+          cd linux-source-6.5.0
 
       - name: Configure kernel sources
         run: |
           wget https://github.com/veithen/knetstat/archive/refs/heads/master.zip
           unzip master.zip
           cd knetstat-master
-          curl https://cdn.kernel.org/pub/linux/kernel/$(echo ${{ matrix.kernel }} | sed -E 's/([^.]+)[.].*/v\1.x/')/linux-${{ matrix.kernel }}.tar.xz | tar xJ
+          # wget https://cl.archive.ubuntu.com/ubuntu/pool/main/l/linux-azure-6.5/linux-azure-6.5_6.5.0.orig.tar.gz && tar xvzf linux-azure-6.5_6.5.0.orig.tar.gz
+          mv ../linux-source-6.5.0 linux-6.5
           cp /boot/config-$(uname -r) linux-${{ matrix.kernel }}/.config
           make -C linux-${{ matrix.kernel }} clean
           yes "" | make -C linux-${{ matrix.kernel }} oldconfig
           make -C linux-${{ matrix.kernel }} modules_prepare
-          make KSRC=linux-${{ matrix.kernel }}
+          sed -i '/Module.symvers/d' ./Makefile
+          make KBUILD_MODPOST_WARN=1 KSRC=linux-${{ matrix.kernel }}
           sudo insmod knetstat.ko
           sudo lsmod | grep knetstat
+      - name: dmesg
+        if: always()
+        run: |
+          sudo dmesg|tail -n 10
+          ls -la /lib/modules
+        
 
       - name: run knetstat
         run: cat /proc/net/tcpstat

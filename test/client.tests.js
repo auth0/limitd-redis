@@ -35,6 +35,23 @@ module.exports = (clientCreator) => {
         client = clientCreator({ retry: { retries: 5 } });
         assert.equal(client.retryOpts.retries, 5);
       });
+
+      describe('keepAlive', () => {
+        describe('when keepAlive is not set', () => {
+          it('should set the keepAlive config to the default value', () => {
+            client = clientCreator();
+            assert.equal(client.db.redis.options.keepAlive || client.db.redis.options.redisOptions.keepAlive, 10000);
+          });
+        });
+
+        describe('when keepAlive is set', () => {
+          it('should set the keepAlive config to the specified value', () => {
+            client = clientCreator({ keepAlive: 5000 });
+            assert.equal(client.db.redis.options.keepAlive || client.db.redis.options.redisOptions.keepAlive, 5000);
+          });
+        });
+      });
+
     });
 
     describe('#handler', () => {

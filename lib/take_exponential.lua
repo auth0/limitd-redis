@@ -4,7 +4,6 @@ local new_content          = tonumber(ARGV[2])
 local tokens_to_take       = tonumber(ARGV[3])
 local ttl                  = tonumber(ARGV[4])
 local drip_interval        = tonumber(ARGV[5])
-local backoff_factor = tonumber(ARGV[6])
 
 local current_time         = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000

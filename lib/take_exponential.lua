@@ -4,6 +4,7 @@ local new_content          = tonumber(ARGV[2])
 local tokens_to_take       = tonumber(ARGV[3])
 local ttl                  = tonumber(ARGV[4])
 local drip_interval        = tonumber(ARGV[5])
+local backoff_factor       = tonumber(ARGV[6])
 
 local current_time         = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000
@@ -24,8 +25,8 @@ else
 end
 
 local backoff_step = bucket_size - step
-local next_token_ms = last_token_ms + (backoff_factor ^ backoff_step) * 1000
-
+local backoff_time = (backoff_factor ^ backoff_step) * 1000
+local next_token_ms = last_token_ms + backoff_time
 local is_passed_wait_time = current_timestamp_ms >= next_token_ms
 
 if current[1] and tokens_per_ms then
@@ -65,4 +66,4 @@ if drip_interval > 0 then
     reset_ms = math.ceil(current_timestamp_ms + (bucket_size - new_content) * drip_interval)
 end
 
-return { new_content, enough_tokens, current_timestamp_ms, reset_ms, backoff_factor, next_token_ms, backoff_step }
+return { new_content, enough_tokens, current_timestamp_ms, reset_ms, backoff_factor, backoff_time, backoff_step }

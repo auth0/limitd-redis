@@ -157,19 +157,70 @@ module.exports.tests = (clientCreator) => {
           buckets: undefined
         }), /Buckets must be specified for Limitd/);
       });
-
     });
 
     describe('#configurateBucketKey', () => {
       it('should add new bucket to existing configuration', () => {
+        console.log("this one works....")
         db.configurateBucket('test', { size: 5 });
         assert.containsAllKeys(db.buckets, ['ip', 'test']);
       });
-
       it('should replace configuration of existing type', () => {
         db.configurateBucket('ip', { size: 1 });
         assert.equal(db.buckets.ip.size, 1);
         assert.equal(Object.keys(db.buckets.ip.overrides).length, 0);
+      });
+    });
+
+    describe('TAKE_EXPONENTIAL', () => {
+      const testRuns = [
+        {
+          backoff_factor: 2,
+          backoff_times: [1, 2, 4, 8, 16]
+        },
+        {
+          backoff_factor: 3,
+          backoff_times: [1, 3, 9, 27]
+        },
+        {
+          backoff_factor: 4,
+          backoff_times: [1, 4, 16]
+        },
+      ];
+      const test_buckets = {
+        ipExponential: {
+          size: 10,
+          per_second: 0,
+        }
+      };
+      const testParams = {
+        name: `test 1`,
+        init: () => db.configurateBuckets(test_buckets),
+        take: (params, callback) => db.takeExponential(params, callback),
+      };
+
+      describe('simple backoff', () => {
+        testRuns.forEach(run => {
+          for (let c = 0; c < run.backoff_times.length; c++) {
+            it(`should backoff exponentially according to 'backoff_factor = ${run.backoff_factor}'`, (done) => {
+              testParams.init();
+              const tryTake = (callback) => {
+                testParams.take({ backoff_factor: run.backoff_factor, type: 'ipExponential', key: '21.17.65.41' }, (err, res) => {
+                  if (res?.conformant) {
+                    assert.equal(res.backoff_time, run.backoff_times[c] * 1000);
+                    callback(null, res);
+                  } else {
+                    console.log(res);
+                    setTimeout(() => {
+                      tryTake(callback);
+                    }, 1000);
+                  }
+                });
+              };
+              done();
+            });
+          };
+        });
       });
     });
 

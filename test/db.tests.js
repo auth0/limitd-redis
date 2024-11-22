@@ -175,8 +175,17 @@ module.exports.tests = (clientCreator) => {
     describe('TAKE_EXPONENTIAL', () => {
       const testRuns = [
         {
+          backoff_factor: 2,
           backoff_times: [1, 2, 4, 8, 16]
-        }
+        },
+        {
+          backoff_factor: 3,
+          backoff_times: [1, 3, 9, 27]
+        },
+        {
+          backoff_factor: 4,
+          backoff_times: [1, 4, 16]
+        },
       ];
       const test_buckets = {
         ipExponential: {
@@ -188,17 +197,15 @@ module.exports.tests = (clientCreator) => {
         name: `test 1`,
         init: () => db.configurateBuckets(test_buckets),
         take: (params, callback) => db.takeExponential(params, callback),
-        backoff_factor: 2,
-        multiplicative_factor: 1,
       };
 
-      describe('idk', () => {
-        it('should follow the expected times', (done) => {
-          testParams.init();
-          testRuns.forEach(run => {
-            for (let c = 0; c < run.backoff_times.length; c++) {
+      describe('simple backoff', () => {
+        testRuns.forEach(run => {
+          for (let c = 0; c < run.backoff_times.length; c++) {
+            it(`should backoff exponentially according to 'backoff_factor = ${run.backoff_factor}'`, (done) => {
+              testParams.init();
               const tryTake = (callback) => {
-                testParams.take({ ...testParams, type: 'ipExponential', key: '21.17.65.41' }, (err, res) => {
+                testParams.take({ backoff_factor: run.backoff_factor, type: 'ipExponential', key: '21.17.65.41' }, (err, res) => {
                   if (res?.conformant) {
                     assert.equal(res.backoff_time, run.backoff_times[c] * 1000);
                     callback(null, res);
@@ -210,9 +217,9 @@ module.exports.tests = (clientCreator) => {
                   }
                 });
               };
-            }
-          });
-          done();
+              done();
+            });
+          };
         });
       });
     });

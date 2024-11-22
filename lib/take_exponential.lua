@@ -25,7 +25,7 @@ else
 end
 
 local backoff_step = bucket_size - step
-local backoff_time = (backoff_factor ^ backoff_step) * 1000
+local backoff_time = math.ceil(backoff_factor ^ backoff_step) * 1000
 local next_token_ms = last_token_ms + backoff_time
 local is_passed_wait_time = current_timestamp_ms >= next_token_ms
 

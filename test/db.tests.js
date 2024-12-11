@@ -220,7 +220,7 @@ module.exports.tests = (clientCreator) => {
         take: (params, callback) => db.takeExponential(params, callback),
       };
 
-      describe.only('simple backoff', () => {
+      describe('simple backoff', () => {
         testRuns.forEach(run => {
           it(`should backoff exponentially according to 'backoff_factor = ${run.bucket.ipExponential.exponential_backoff.backoff_factor}'`, async function(){
             this.timeout(20000)

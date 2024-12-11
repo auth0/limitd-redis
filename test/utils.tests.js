@@ -42,6 +42,23 @@ describe('utils', () => {
       });
     });
 
+    it('should return a normalized bucket with exponential backoff', () => {
+      const bucket= {
+        exponential_backoff: {
+          backoff_factor: 5,
+          multiple_unit: 6
+        }
+      }
+      const response = normalizeType(bucket);
+      const {size, elevated_limits, overrides, overridesMatch, overridesCache, ...rest } = response;
+      expect(rest).to.deep.equal({
+       backoff_factor: 5,
+         multiple_unit: 6
+      })
+
+
+    });
+
     it('should return normalized bucket without ERL', () => {
       const bucket = {
         size: 100,

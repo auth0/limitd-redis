@@ -1,3 +1,4 @@
+/* eslint-disable */
 var assert = require('assert'),
   cb = require('../lib/cb');
 

@@ -1,3 +1,4 @@
+/* eslint-disable */
 /* eslint-env node, mocha */
 const ms = require('ms');
 const async = require('async');

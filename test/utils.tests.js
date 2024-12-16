@@ -1,3 +1,4 @@
+/* eslint-disable */
 /* eslint-env node, mocha */
 //const assert = require('chai').assert;
 const chai = require('chai');

@@ -1,3 +1,4 @@
+/* eslint-disable */
 const LimitDB = require('../lib/db');
 const _ = require('lodash');
 const { tests: dbTests } = require('./db.tests');

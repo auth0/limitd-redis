@@ -55,9 +55,7 @@ describe('utils', () => {
       expect(rest).to.deep.equal({
        backoff_factor: 5,
          multiple_unit: 6
-      })
-
-
+      });
     });
 
     it('should return normalized bucket without ERL', () => {

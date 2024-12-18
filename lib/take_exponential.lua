@@ -6,6 +6,7 @@ local ttl                  = tonumber(ARGV[4])
 local drip_interval        = tonumber(ARGV[5])
 local backoff_factor       = tonumber(ARGV[6])
 local mult_unit            = tonumber(ARGV[7])
+local fixed_window         = tonumber(ARGV[8])
 
 local current_time         = redis.call('TIME')
 local current_timestamp_ms = current_time[1] * 1000 + current_time[2] / 1000
@@ -18,20 +19,29 @@ end
 
 -- calculate the time of next available token
 local last_token_ms = current[1] or 0
-local step = 0
+local remaining_tokens = 0
 if current[2] then
-    step = tonumber(current[2])
+    remaining_tokens = tonumber(current[2])
 else
-    step = bucket_size
+    remaining_tokens = bucket_size
 end
 
-local backoff_step = bucket_size - step
+local backoff_step = bucket_size - remaining_tokens
 local backoff_time = math.ceil(backoff_factor ^ backoff_step) * mult_unit
 local next_token_ms = last_token_ms + backoff_time
 local is_passed_wait_time = current_timestamp_ms >= next_token_ms
 
 if current[1] and tokens_per_ms then
     -- drip bucket
+
+    if fixed_window > 0 then
+        -- fixed window for granting new tokens
+        local interval_correction = (current_timestamp_ms - last_token_ms) % fixed_window
+        current_timestamp_ms = current_timestamp_ms - interval_correction
+    end
+
+    is_passed_wait_time = current_timestamp_ms >= next_token_ms
+
     if not is_passed_wait_time then
         new_content = tonumber(current[2])
         last_token_ms = current[1]
@@ -63,8 +73,10 @@ redis.call('HMSET', KEYS[1],
 redis.call('EXPIRE', KEYS[1], ttl)
 
 local reset_ms = 0
-if drip_interval > 0 then
+if fixed_window > 0 then
+    reset_ms = current_timestamp_ms + fixed_window
+elseif drip_interval > 0 then
     reset_ms = math.ceil(current_timestamp_ms + (bucket_size - new_content) * drip_interval)
 end
 
-return { new_content, enough_tokens, current_timestamp_ms, reset_ms, backoff_factor, backoff_time, backoff_step }
+return { new_content, enough_tokens, current_timestamp_ms, reset_ms, backoff_factor, backoff_time, next_token_ms }

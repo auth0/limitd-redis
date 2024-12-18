@@ -162,7 +162,6 @@ module.exports.tests = (clientCreator) => {
 
     describe('#configurateBucketKey', () => {
       it('should add new bucket to existing configuration', () => {
-        console.log("this one works....")
         db.configurateBucket('test', { size: 5 });
         assert.containsAllKeys(db.buckets, ['ip', 'test']);
       });

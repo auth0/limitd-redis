@@ -1,3 +1,4 @@
+/* eslint-disable */
 /* eslint-env node, mocha */
 const _ = require('lodash');
 const assert = require('chai').assert;

@@ -1,3 +1,4 @@
+/* eslint-disable */
 /* eslint-env node, mocha */
 const ms = require('ms');
 const async = require('async');
@@ -157,7 +158,6 @@ module.exports.tests = (clientCreator) => {
           buckets: undefined
         }), /Buckets must be specified for Limitd/);
       });
-
     });
 
     describe('#configurateBucketKey', () => {
@@ -165,13 +165,88 @@ module.exports.tests = (clientCreator) => {
         db.configurateBucket('test', { size: 5 });
         assert.containsAllKeys(db.buckets, ['ip', 'test']);
       });
-
       it('should replace configuration of existing type', () => {
         db.configurateBucket('ip', { size: 1 });
         assert.equal(db.buckets.ip.size, 1);
         assert.equal(Object.keys(db.buckets.ip.overrides).length, 0);
       });
     });
+
+    describe('TAKE_EXPONENTIAL', () => {
+      const testRuns = [
+        {
+          bucket: {
+            ipExponential: {
+              size: 10,
+              per_second: 0,
+              exponential_backoff: {
+                backoff_factor: 2,
+                multiple_unit: 10,
+              },
+            },
+          },
+          backoff_times: [1, 2, 4, 8],
+        },
+        {
+          bucket: {
+            ipExponential: {
+              size: 10,
+              per_second: 0,
+              exponential_backoff: {
+                backoff_factor: 3,
+                multiple_unit: 10,
+              },
+            },
+          },
+          backoff_times: [1, 3, 9, 27],
+        },
+        {
+          bucket: {
+            ipExponential: {
+              size: 10,
+              per_second: 0,
+              exponential_backoff: {
+                backoff_factor: 4,
+                multiple_unit: 10,
+              },
+            },
+          },
+          backoff_times: [1, 4, 16, 64],
+        },
+      ];
+      const testParams = {
+        name: `test 1`,
+        init: (test_buckets) => db.configurateBuckets(test_buckets),
+        take: (params, callback) => db.takeExponential(params, callback),
+      };
+
+      describe('simple backoff', () => {
+        testRuns.forEach(run => {
+          it(`should backoff exponentially according to 'backoff_factor = ${run.bucket.ipExponential.exponential_backoff.backoff_factor}'`, async function(){
+            this.timeout(20000)
+            testParams.init(run.bucket);
+            const tryTake = async (exp) => {
+              return new Promise((resolve) => {
+                testParams.take({ type: 'ipExponential', key: '21.17.65.41'}, (err, res) => {
+                  if (res?.conformant) {
+                    assert.equal(res.backoff_time, exp);
+                    resolve();
+                  } else {
+                    setTimeout(() => {
+                      tryTake(exp).then(resolve);
+                    }, 1000);
+                  }
+                });
+              })
+            };
+
+            for (let c = 0; c < run.backoff_times.length; c++) {
+              await tryTake(run.backoff_times[c]*run.bucket.ipExponential.exponential_backoff.multiple_unit);
+            }
+        }, 20000);
+      });
+    });
+      });
 
     describe('TAKE', () => {
       const testsParams = [

@@ -17,6 +17,7 @@
     "async": "^2.6.1",
     "disyuntor": "^3.5.0",
     "ioredis": "^5.3.2",
+    "limitd-redis": "^8.4.0",
     "lodash": "^4.17.15",
     "lru-cache": "^4.1.5",
     "ms": "^2.1.2",

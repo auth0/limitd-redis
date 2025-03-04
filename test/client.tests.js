@@ -187,6 +187,17 @@ module.exports = (clientCreator) => {
       });
     });
 
+    describe('#del', () => {
+      it('should call #handle with del as the method', (done) => {
+        client.handler = (method, type, keys, cb) => {
+          assert.equal(method, 'del');
+          assert.equal(keys, ['testkey']);
+          cb();
+        };
+        client.del('test', 'testkey', done);
+      });
+    });
+
     describe('#reset', () => {
       it('should call #put', (done) => {
         client.put = (type, key, count, cb) => {

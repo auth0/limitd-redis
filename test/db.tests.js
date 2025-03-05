@@ -2822,6 +2822,69 @@ module.exports.tests = (clientCreator) => {
       });
     });
 
+    describe('DEL', () => {
+
+      it('should delete a single existing key successfully', (done) => {
+        let key = "i-exist"
+        db.redis.set(key, 'value', (err) => {
+          if (err) return done(err);
+
+          db.del(key, (err, result) => {
+            assert.isNull(err);
+            assert.equal(result, 1);
+            done();
+          });
+        });
+      });
+
+      it('should delete multiple existing keys successfully', (done) => {
+        const keys = ['key1', 'key2', 'key3'];
+        async.each(keys, (key, cb) => db.redis.set(key, 'value', cb), (err) => {
+          if (err) return done(err);
+
+          db.del(keys, (err, result) => {
+            assert.isNull(err);
+            assert.equal(result, keys.length);
+            done();
+          });
+        });
+      });
+
+      it('should handle mixed existing and non-existing keys', (done) => {
+        const keys = ['key1', 'non-existent-key', 'key2'];
+        async.each(['key1', 'key2'], (key, cb) => db.redis.set(key, 'value', cb), (err) => {
+          if (err) return done(err);
+
+          db.del(keys, (err, result) => {
+            assert.isNull(err);
+            assert.equal(result, 2);
+            done();
+          });
+        });
+      });
+
+      it('should continue gracefully if key does not exist', (done) => {
+        db.del('non-existent-key', (err, result) => {
+          assert.isNull(err);
+          assert.equal(result, 0);
+          done();
+        });
+      });
+
+      it('should handle Redis errors gracefully', (done) => {
+        const redisStub = sinon.stub(db.redis, 'del').yields(new Error('Random redis error'));
+
+        db.del('some-key', (err, result) => {
+          assert.isNotNull(err);
+          assert.match(err.message, /Failed deleting key/);
+          assert.isUndefined(result);
+
+          redisStub.restore();
+          done();
+        });
+      });
+    });
+
     describe('#resetAll', () => {
       it('should reset all keys of all buckets', (done) => {
         async.parallel([

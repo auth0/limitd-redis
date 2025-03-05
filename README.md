@@ -372,6 +372,10 @@ and it returns the number of keys deleted.
 `limitd.del` takes the following as an argument:
 -  `keys` (string | string[]): redis key(s) to delete. It can be a string or an array of strings.
 
+⚠️ In clustered redis environment, if you want to delete multiple keys, you must run the
+command for each individual key separately. There is no guarantee all keys will be in the same
+cluster, and a single DEL can only delete multiple keys if they are the same cluster.
+
 It returns:
 - `result` (int): the number of keys deleted. (If 0, key didn't exist)
 

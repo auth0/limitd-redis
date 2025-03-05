@@ -338,7 +338,7 @@ The following table describes how the fixed window bucket configuration and the 
 
 ## PUT
 
-You can manually reset a fill a bucket using PUT:
+You can manually reset or fill a bucket using PUT:
 
 ```js
 limitd.put(type, key, [count], (err, result) => {
@@ -352,6 +352,29 @@ limitd.put(type, key, [count], (err, result) => {
 -  `key`: the identifier of the bucket.
 -  `count`: the amount of tokens you want to put in the bucket. This is optional and the default is the size of the bucket.
 -  `configOverride`: caller-provided bucket configuration for this operation
+
+## DEL
+
+You can delete a specific key (or a list of keys) using DEL:
+
+```js
+limitd.del('single-key', (err, result) => {
+  console.log(result);
+});
+
+limitd.del(['key1', 'key2'], (err, result) => {
+  console.log(result);
+});
+```
+It works similarly to the `DEL` command in Redis; it accepts a single key or an array of keys to delete, 
+and it returns the number of keys deleted.
+
+`limitd.del` takes the following as an argument:
+-  `keys` (string | string[]): redis key(s) to delete. It can be a string or an array of strings.
+
+It returns:
+- `result` (int): the number of keys deleted. (If 0, key didn't exist)
+
 
 ## Overriding Configuration at Runtime
 Since the method of storing overrides for buckets in memory does not scale to a large number, limitd-redis provides a way for callers to pass in configuration from an external data store.  The shape of this `configOverride` parameter (available on `take`, `put`, `get`, and `wait`) is exactly the same as `Buckets` above ^.

@@ -18,6 +18,7 @@ It's a fork from [LimitDB](https://github.com/limitd/limitdb).
    - [Use of Redis hash tags](#use-of-redis-hash-tags)
 - [Breaking changes from `Limitdb`](#breaking-changes-from-limitdb)
 - [TAKE](#take)
+- [TAKEEXPONENTIAL](#takeexponential)
 - [TAKEELEVATED](#takeelevated)
   - [Use of fixed window on Take and TakeElevated](#use-of-fixed-window-on-take-and-takeelevated)
 - [PUT](#put)
@@ -260,6 +261,48 @@ The result object has:
 -  `limit` (int): the size of the bucket. 
 -  `delta_reset_ms` (int): the time remaining until the bucket is full again, expressed in milliseconds from the current time.
 
+## TAKEEXPONENTIAL
+
+
+### Configuration
+You can configure exponential backoff inside your bucket definitions as follows:
+
+```js
+buckets = {
+  ip: {
+    size: 10,
+    per_second: 5,
+    exponential_backoff: { // Optional. ERL configuration if needed for the bucket. If not defined, defaults will be used if called with takeExponential.
+      backoff_factor: 3, // Optional. The exponential backoff factor used as the base (n) for n<sup>i</sup>. Default: the value 2 will be used if nothing is specified..
+      multiple_unit: 6, // Optional. The factor used for backoff offset. Used as (m) for m*n<sup>i</n>. Default: the value 1000 in miliseconds will be used if nothing is specified.
+    }
+  }
+}
+```
+
+This take operation allows the use of exponential backoff rate limits.
+
+```js
+limitd.takeExponential(type, key, { count, configOverride }, (err, result) => {
+  console.log(result);
+});
+```
+
+`limitd.takeExponential` takes the following arguments:
+- `type`: the bucket type.
+- `key`: the identifier of the bucket.
+- `count`: the amount of tokens you need. This is optional and the default is 1.
+- `configOverride`: caller-provided bucket configuration for this operation
+
+The result options has:
+- `conformant` (boolean): true if the requested amount is conformant to the limit.
+- `remaining` (int): the amount of remaining tokens in the bucket.
+- `reset` (int / unix timestamp): unix timestamp of the date when the bucket will be full again.
+- `limit` (int): the size of the bucket.
+- `delta_reset_ms` (int): the time remaining until the bucket is full again, expressed in milliseconds from the current time.
+- `backoff_factor` (int): the base exponential factor used for exponential backoff
+- `delta_backoff_time` (int): the amount of time until next allowed request expressed in milliseconds from the current time.
+
 ## TAKEELEVATED
 
 This take operation allows the use of elevated rate limits if it corresponds.
@@ -310,12 +353,12 @@ if erl_triggered // quota left in the quotaKey bucket
 if !erl_triggered // ERL wasn't triggered in this call, so we haven't identified the remaining quota.
 ```
 
-### Use of fixed window in Take and TakeElevated
+### Use of fixed window in Take, TakeExponential and TakeElevated
 By default, the bucket uses the sliding window algorithm to refill tokens. For example, if the bucket is set to 100 tokens per second, it refills 1 token every 10 milliseconds (1000ms / 100 tokens per second).  
 
 With the fixed window algorithm, the bucket refills at the specified interval. For instance, if set to 100 tokens per second, it refills 100 tokens every second.
 
-To use the fixed window algorithm on `Take` or `TakeElevated`, set the `fixed_window` property in the bucket configuration to `true` (default is `false`). This will refill the bucket at the specified interval
+To use the fixed window algorithm on `Take` `TakeExponential` or `TakeElevated`, set the `fixed_window` property in the bucket configuration to `true` (default is `false`). This will refill the bucket at the specified interval
 
 Additionally, you can use the `fixed_window` flag in the configOverride parameter. This acts as a feature flag for safe deployment, but it cannot activate the fixed window algorithm if the bucket configuration is set to false.
 

@@ -272,7 +272,7 @@ buckets = {
   ip: {
     size: 10,
     per_second: 5,
-    exponential_backoff: { // Optional. ERL configuration if needed for the bucket. If not defined, defaults will be used if called with takeExponential.
+    exponential_backoff: { // Optional. Exp Backoff configuration if needed for the bucket. If not defined, defaults will be used if called with takeExponential.
       backoff_factor: 3, // Optional. The exponential backoff factor used as the base (n) for n<sup>i</sup>. Default: the value 2 will be used if nothing is specified..
       multiple_unit: 6, // Optional. The factor used for backoff offset. Used as (m) for m*n<sup>i</n>. Default: the value 1000 in miliseconds will be used if nothing is specified.
     }

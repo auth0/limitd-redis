@@ -78,6 +78,7 @@ const limitd = new Limitd({
 - `unlimited` (boolean = false): unlimited requests (skip take).
 - `skip_n_calls` (number): take will go to redis every `n` calls instead of going in every take.
 - `elevated_limits` (object): elevated limits configuration that kicks in when the bucket is empty. Please refer to the [ERL section](#ERL-Elevated-Rate-Limits) for more details.
+- `exponential_backoff` (object): exponential backoff configuration for the use of `takeExponential`. Please refer to the [TAKEEXPONENTIAL section](#takeexponential) for more details.
 - `fixed_window` (boolean = false): refill at specified interval instead of granular.
 
 You can also define your rates using `per_second`, `per_minute`, `per_hour`, `per_day`. So `per_second: 1` is equivalent to `per_interval: 1, interval: 1000`.

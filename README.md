@@ -21,6 +21,7 @@ It's a fork from [LimitDB](https://github.com/limitd/limitdb).
 - [TAKEELEVATED](#takeelevated)
   - [Use of fixed window on Take and TakeElevated](#use-of-fixed-window-on-take-and-takeelevated)
 - [PUT](#put)
+- [DEL](#del)
 - [Overriding Configuration at Runtime](#overriding-configuration-at-runtime)
    - [Overriding Configuration at Runtime with ERL](#overriding-configuration-at-runtime-with-erl)
 - [Testing](#testing)
@@ -355,26 +356,17 @@ limitd.put(type, key, [count], (err, result) => {
 
 ## DEL
 
-You can delete a specific key (or a list of keys) using DEL:
+You can delete a specific Redis key using DEL:
 
 ```js
-limitd.del('single-key', (err, result) => {
+limitd.del('my-key', (err, result) => {
   console.log(result);
 });
 
-limitd.del(['key1', 'key2'], (err, result) => {
-  console.log(result);
-});
 ```
-It works similarly to the `DEL` command in Redis; it accepts a single key or an array of keys to delete, 
-and it returns the number of keys deleted.
 
 `limitd.del` takes the following as an argument:
 -  `keys` (string | string[]): redis key(s) to delete. It can be a string or an array of strings.
-
-⚠️ In clustered redis environment, if you want to delete multiple keys, you must run the
-command for each individual key separately. There is no guarantee all keys will be in the same
-cluster, and a single DEL can only delete multiple keys if they are the same cluster.
 
 It returns:
 - `result` (int): the number of keys deleted. (If 0, key didn't exist)

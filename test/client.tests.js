@@ -189,12 +189,12 @@ module.exports = (clientCreator) => {
 
     describe('#del', () => {
       it('should call #handle with del as the method', (done) => {
-        client.handler = (method, type, keys, cb) => {
+        client.handler = (method, type, key, cb) => {
           assert.equal(method, 'del');
-          assert.equal(keys, ['testkey']);
+          assert.equal(key, 'testkey');
           cb();
         };
-        client.del('test', 'testkey', done);
+        client.del('testkey', done);
       });
     });
 

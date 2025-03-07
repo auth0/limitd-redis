@@ -121,7 +121,7 @@ const elevatedBuckets = {
 
 module.exports.buckets = buckets;
 module.exports.elevatedBuckets = elevatedBuckets;
-module.exports.tests = (clientCreator, isClustered) => {
+module.exports.tests = (clientCreator) => {
   describe('LimitDBRedis', () => {
     let db;
     const prefix = 'tests:'
@@ -2828,8 +2828,7 @@ module.exports.tests = (clientCreator, isClustered) => {
         let key = "i-exist"
         db.redis.set(key, 'value', (err) => {
           if (err) return done(err);
-
-          db.del(key, (err, result) => {
+          db.del({key: key}, (err, result) => {
             assert.isNull(err);
             assert.equal(result, 1);
             done();
@@ -2837,59 +2836,8 @@ module.exports.tests = (clientCreator, isClustered) => {
         });
       });
 
-      describe('when passed a list of multiple keys' , () => {
-
-        if(isClustered) {
-          it('should raise CrossSlotError and print recommendation', (done) => {
-            const keys = ['key1', 'key2', 'key3'];
-            async.each(keys, (key, cb) => db.redis.set(key, 'value', cb), (err) => {
-              if (err) return done(err);
-              db.del(keys, (err, result) => {
-                const expectedErrorMsg = 'Failed deleting key(s) ' +
-                    'key1,key2,key3: CROSSSLOT Keys in request don\'t hash to ' +
-                    'the same slot\nYou are likely receiving this error because you are in ' +
-                    'a in clustered redis environment. The keys you listed might be living in ' +
-                    'different clusters, which a single DEL command cannot handle. Please try ' +
-                    'again by running the command separately for each key instead.'
-                assert.equal(err.message, expectedErrorMsg)
-                assert.equal(err.name, 'CrossSlotError')
-                assert.isUndefined(result);
-                done();
-              });
-            });
-          });
-
-        }
-        else {
-
-          it('should delete multiple existing keys successfully', (done) => {
-            const keys = ['key1', 'key2', 'key3'];
-            async.each(keys, (key, cb) => db.redis.set(key, 'value', cb), (err) => {
-              if (err) return done(err);
-              db.del(keys, (err, result) => {
-                assert.isNull(err);
-                assert.equal(result, keys.length);
-                done();
-              });
-            });
-          });
-
-          it('should handle mixed existing and non-existing keys', (done) => {
-            const keys = ['key1', 'non-existent-key', 'key2'];
-            async.each(['key1', 'key2'], (key, cb) => db.redis.set(key, 'value', cb), (err) => {
-              if (err) return done(err);
-              db.del(keys, (err, result) => {
-                assert.isNull(err);
-                assert.equal(result, 2);
-                done();
-              });
-            });
-          });
-        }
-      })
-
       it('should continue gracefully if key does not exist', (done) => {
-        db.del('non-existent-key', (err, result) => {
+        db.del({key: 'non-existent-key'}, (err, result) => {
           assert.isNull(err);
           assert.equal(result, 0);
           done();
@@ -2897,11 +2845,12 @@ module.exports.tests = (clientCreator, isClustered) => {
       });
 
       it('should handle Redis errors gracefully', (done) => {
-        const redisStub = sinon.stub(db.redis, 'del').yields(new Error('Random redis error'));
+        const redisError = new Error('Random redis error');
+        const redisStub = sinon.stub(db.redis, 'del').yields(redisError);
 
-        db.del('some-key', (err, result) => {
+        db.del({key: 'some-key'}, (err, result) => {
           assert.isNotNull(err);
-          assert.match(err.message, /Failed deleting key/);
+          assert.equal(err, redisError);
           assert.isUndefined(result);
 
           redisStub.restore();

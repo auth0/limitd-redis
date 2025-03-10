@@ -366,7 +366,7 @@ limitd.del('my-key', (err, result) => {
 ```
 
 `limitd.del` takes the following as an argument:
--  `keys` (string | string[]): redis key(s) to delete. It can be a string or an array of strings.
+-  `key` (string): redis key to delete.
 
 It returns:
 - `result` (int): the number of keys deleted. (If 0, key didn't exist)

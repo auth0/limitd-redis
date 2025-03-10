@@ -2,10 +2,6 @@
 const LimitDB = require('../lib/db');
 const _ = require('lodash');
 const { tests: dbTests, buckets} = require('./db.tests');
-const { assert } = require('chai');
-const { Toxiproxy, Toxic } = require('toxiproxy-node-client');
-const crypto = require('crypto');
-
 
 
 describe('when using LimitDB', () => {

@@ -2822,6 +2822,43 @@ module.exports.tests = (clientCreator) => {
       });
     });
 
+    describe('DEL', () => {
+
+      it('should delete a single existing key successfully', (done) => {
+        let key = "i-exist"
+        db.redis.set(key, 'value', (err) => {
+          if (err) return done(err);
+          db.del({key: key}, (err, result) => {
+            assert.isNull(err);
+            assert.equal(result, 1);
+            done();
+          });
+        });
+      });
+
+      it('should continue gracefully if key does not exist', (done) => {
+        db.del({key: 'non-existent-key'}, (err, result) => {
+          assert.isNull(err);
+          assert.equal(result, 0);
+          done();
+        });
+      });
+
+      it('should handle Redis errors gracefully', (done) => {
+        const redisError = new Error('Random redis error');
+        const redisStub = sinon.stub(db.redis, 'del').yields(redisError);
+
+        db.del({key: 'some-key'}, (err, result) => {
+          assert.isNotNull(err);
+          assert.equal(err, redisError);
+          assert.isUndefined(result);
+
+          redisStub.restore();
+          done();
+        });
+      });
+    });
+
     describe('#resetAll', () => {
       it('should reset all keys of all buckets', (done) => {
         async.parallel([

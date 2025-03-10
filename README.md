@@ -21,6 +21,7 @@ It's a fork from [LimitDB](https://github.com/limitd/limitdb).
 - [TAKEELEVATED](#takeelevated)
   - [Use of fixed window on Take and TakeElevated](#use-of-fixed-window-on-take-and-takeelevated)
 - [PUT](#put)
+- [DEL](#del)
 - [Overriding Configuration at Runtime](#overriding-configuration-at-runtime)
    - [Overriding Configuration at Runtime with ERL](#overriding-configuration-at-runtime-with-erl)
 - [Testing](#testing)
@@ -338,7 +339,7 @@ The following table describes how the fixed window bucket configuration and the 
 
 ## PUT
 
-You can manually reset a fill a bucket using PUT:
+You can manually reset or fill a bucket using PUT:
 
 ```js
 limitd.put(type, key, [count], (err, result) => {
@@ -352,6 +353,24 @@ limitd.put(type, key, [count], (err, result) => {
 -  `key`: the identifier of the bucket.
 -  `count`: the amount of tokens you want to put in the bucket. This is optional and the default is the size of the bucket.
 -  `configOverride`: caller-provided bucket configuration for this operation
+
+## DEL
+
+You can delete a specific Redis key using DEL:
+
+```js
+limitd.del('my-key', (err, result) => {
+  console.log(result);
+});
+
+```
+
+`limitd.del` takes the following as an argument:
+-  `key` (string): redis key to delete.
+
+It returns:
+- `result` (int): the number of keys deleted. (If 0, key didn't exist)
+
 
 ## Overriding Configuration at Runtime
 Since the method of storing overrides for buckets in memory does not scale to a large number, limitd-redis provides a way for callers to pass in configuration from an external data store.  The shape of this `configOverride` parameter (available on `take`, `put`, `get`, and `wait`) is exactly the same as `Buckets` above ^.

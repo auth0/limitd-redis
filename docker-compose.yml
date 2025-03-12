@@ -1,11 +1,12 @@
 services:
   redis:
-    image: 'redis:6'
-    command: --save "" --appendonly no
+    image: ${REDIS_IMAGE}
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
     ports:
       - "6379:6379"
   toxiproxy:
-    image: 'shopify/toxiproxy'
+    image: "shopify/toxiproxy"
     ports:
       - "8474:8474"
       - "22222:22222"

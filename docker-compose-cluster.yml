@@ -1,34 +1,43 @@
 services:
   redis-1:
-    image: 'redis:6'
+    image: ${REDIS_IMAGE}
     healthcheck:
       interval: "1s"
-      test: [ "CMD", "redis-cli", "-p", "16371", "ping", "|", "grep", "PONG" ]
+      test: ["CMD", "redis-cli", "-p", "16371", "ping", "|", "grep", "PONG"]
     command: ["redis-server", "/etc/redis/redis.conf"]
+    user: root
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
     volumes:
       - ${PWD}/test-resources/redis-cluster/node-1/conf/redis.conf:/etc/redis/redis.conf
     network_mode: host
   redis-2:
-    image: 'redis:6'
+    image: ${REDIS_IMAGE}
     healthcheck:
       interval: "1s"
-      test: [ "CMD", "redis-cli", "-p", "16372", "ping", "|", "grep", "PONG" ]
-    command: [ "redis-server", "/etc/redis/redis.conf" ]
+      test: ["CMD", "redis-cli", "-p", "16372", "ping", "|", "grep", "PONG"]
+    command: ["redis-server", "/etc/redis/redis.conf"]
+    user: root
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
     volumes:
       - ${PWD}/test-resources/redis-cluster/node-2/conf/redis.conf:/etc/redis/redis.conf
     network_mode: host
   redis-3:
-    image: 'redis:6'
+    image: ${REDIS_IMAGE}
     healthcheck:
       interval: "1s"
-      test: [ "CMD", "redis-cli", "-p", "16373", "ping", "|", "grep", "PONG" ]
-    command: [ "redis-server", "/etc/redis/redis.conf" ]
+      test: ["CMD", "redis-cli", "-p", "16373", "ping", "|", "grep", "PONG"]
+    command: ["redis-server", "/etc/redis/redis.conf"]
+    user: root
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
     volumes:
       - ${PWD}/test-resources/redis-cluster/node-3/conf/redis.conf:/etc/redis/redis.conf
     network_mode: host
   redis-cluster-create:
-    image: 'redis:6'
-    command: '/usr/local/etc/redis/redis-cluster-create.sh'
+    image: ${REDIS_IMAGE}
+    command: "/usr/local/etc/redis/redis-cluster-create.sh"
     depends_on:
       redis-1:
         condition: service_healthy
@@ -36,8 +45,15 @@ services:
         condition: service_healthy
       redis-3:
         condition: service_healthy
+    user: root
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
     volumes:
       - ${PWD}/test-resources/redis-cluster/redis-cluster-create.sh:/usr/local/etc/redis/redis-cluster-create.sh
     network_mode: host
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -p 16371 -c cluster info | grep cluster_state:ok"]
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -p 16371 -c cluster info | grep cluster_state:ok",
+        ]

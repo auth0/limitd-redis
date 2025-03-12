@@ -1,4 +1,4 @@
-name: Test
+name: Test Redis
 
 on:
   push:
@@ -9,14 +9,44 @@ on:
       - master
 
 jobs:
-  test:
+  redis-standalone:
     env:
       CI: true
     timeout-minutes: 10
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [14.x, 16.x, 18.x, 20.x]
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Standalone Tests
+        run: make test-standalone-redis-setup
+
+      - name: Run Standalone tests
+        run: make test-standalone-run
+
+      - name: Teardown Standalone Tests
+        run: make test-standalone-redis-teardown
+
+  redis-cluster:
+    env:
+      CI: true
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
 
     steps:
       - name: Checkout
@@ -33,23 +63,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Setup Standalone Tests
-        run: make test-standalone-setup
-
-      - name: Run Standalone tests
-        run: make test-standalone
-
-      - name: Teardown Standalone Tests
-        run: make test-standalone-teardown
-
       - name: Setup Clustered Tests
-        run: make test-cluster-setup
+        run: make test-cluster-redis-setup
 
       - name: Check Redis Cluster
         run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
 
       - name: Run Clustered tests
-        run: make test-cluster
+        run: make test-cluster-run
 
       - name: Teardown Clustered Tests
-        run: make test-cluster-teardown
+        run: make test-cluster-redis-teardown

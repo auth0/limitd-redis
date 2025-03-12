@@ -1,8 +1,8 @@
 export CLUSTER_NO_TLS_VALIDATION=true
 .ONESHELL:
 
-VALKEY_DOCKER_IMAGE=a0us-docker.jfrog.io/bitnami/valkey:8.0.2-debian-12-r5
-REDIS_DOCKER_IMAGE=a0us-docker.jfrog.io/redis:6
+VALKEY_DOCKER_IMAGE=bitnami/valkey:8.0.2-debian-12-r5
+REDIS_DOCKER_IMAGE=redis:6
 
 test: test-redis test-valkey
 	@echo "All tests executed"
@@ -15,7 +15,6 @@ test-setup-%: test-standalone-%-setup test-cluster-%-setup
 
 test-teardown-%: test-standalone-%-teardown test-cluster-%-teardown
 	@echo "Test teardown executed"
-
 
 test-standalone-redis-setup:
 	REDIS_IMAGE=${REDIS_DOCKER_IMAGE} docker compose up -d

@@ -1,0 +1,76 @@
+name: Test Valkey
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  valkey-standalone:
+    env:
+      CI: true
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Standalone Tests
+        run: make test-standalone-valkey-setup
+
+      - name: Run Standalone tests
+        run: make test-standalone-run
+
+      - name: Teardown Standalone Tests
+        run: make test-standalone-valkey-teardown
+
+  valkey-cluster:
+    env:
+      CI: true
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: install redis-cli
+        run: sudo apt-get install redis-tools
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Clustered Tests
+        run: make test-cluster-valkey-setup
+
+      - name: Check valkey Cluster
+        run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
+
+      - name: Run Clustered tests
+        run: make test-cluster-run
+
+      - name: Teardown Clustered Tests
+        run: make test-cluster-valkey-teardown

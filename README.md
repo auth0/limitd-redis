@@ -456,10 +456,12 @@ const configOverride = {
 
 ## Testing
 
-- Setup tests: `make test-setup`
-- Run tests: `make test`
-- Teardown tests: `make test-teardown`
-
+- Run All tests: `make test`
+- Run Redis tests: `make test-redis`
+- Run Valkey tests: `make test-valkey`
+- Setup environment for testing with Redis: `make test-setup-redis`
+- Setup environment for testing with Valkey: `make test-setup-valkey`
+- Teardown environment: `make test-teardown-all`
 
 ## Author
 

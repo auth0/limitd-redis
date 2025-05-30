@@ -391,6 +391,73 @@ describe("LimitDBRedis", () => {
       assert.exists(config.interval);
       assert.exists(config.ms_per_interval);
     });
+
+    describe("fixed_window behavior", () => {
+      beforeEach(() => {
+        db.configurateBucket("fixed-window-test", {
+          size: 10,
+          per_second: 5,
+          fixed_window: true, // Base fixed_window config
+          overrides: {
+            "override-fixed-window": {
+              size: 20,
+              fixed_window: false, // Override base fixed_window
+            },
+            "inherit-fixed-window": {
+              size: 30,
+              // Should inherit fixed_window from base
+            },
+            "pattern-fixed-window": {
+              match: "^pattern-.*",
+              size: 40,
+              // Should inherit fixed_window from base
+            },
+          },
+        });
+      });
+
+      it("should inherit base fixed_window in overrides when not specified", () => {
+        const config = db.bucketKeyConfig(db.buckets["fixed-window-test"], {
+          key: "inherit-fixed-window",
+        });
+        assert.equal(config.size, 30);
+        assert.isTrue(config.fixed_window);
+      });
+
+      it("should respect override-specific fixed_window value", () => {
+        const config = db.bucketKeyConfig(db.buckets["fixed-window-test"], {
+          key: "override-fixed-window",
+        });
+        assert.equal(config.size, 20);
+        assert.isFalse(config.fixed_window);
+      });
+
+      it("should inherit base fixed_window in regex matches", () => {
+        const config = db.bucketKeyConfig(db.buckets["fixed-window-test"], {
+          key: "pattern-123",
+        });
+        assert.equal(config.size, 40);
+        assert.isTrue(config.fixed_window);
+      });
+
+      it("should respect override fixed_window in config override", () => {
+        const config = db.bucketKeyConfig(db.buckets["fixed-window-test"], {
+          key: "any-key",
+          configOverride: { size: 15, fixed_window: false },
+        });
+        assert.equal(config.size, 15);
+        assert.isFalse(config.fixed_window);
+      });
+
+      it("should inherit base fixed_window in config override when not specified", () => {
+        const config = db.bucketKeyConfig(db.buckets["fixed-window-test"], {
+          key: "any-key",
+          configOverride: { size: 15 },
+        });
+        assert.equal(config.size, 15);
+        assert.isTrue(config.fixed_window);
+      });
+    });
   });
 
   describe("#takeExponential", () => {

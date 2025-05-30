@@ -31,13 +31,13 @@ jobs:
         run: npm install
 
       - name: Setup Standalone Tests
-        run: make test-standalone-redis-setup
+        run: make integration-standalone-redis-setup
 
       - name: Run Standalone tests
-        run: make test-standalone-run
+        run: make integration-standalone-run
 
       - name: Teardown Standalone Tests
-        run: make test-standalone-redis-teardown
+        run: make integration-standalone-redis-teardown
 
   redis-cluster:
     env:
@@ -64,13 +64,13 @@ jobs:
         run: npm install
 
       - name: Setup Clustered Tests
-        run: make test-cluster-redis-setup
+        run: make integration-cluster-redis-setup
 
       - name: Check Redis Cluster
         run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
 
       - name: Run Clustered tests
-        run: make test-cluster-run
+        run: make integration-cluster-run
 
       - name: Teardown Clustered Tests
-        run: make test-cluster-redis-teardown
+        run: make integration-cluster-redis-teardown

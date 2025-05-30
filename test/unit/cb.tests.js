@@ -1,6 +1,6 @@
 /* eslint-disable */
 var assert = require('assert'),
-  cb = require('../lib/cb');
+  cb = require('../../lib/cb');
 
 function invokeAsync(callback) {
   setTimeout(function() {

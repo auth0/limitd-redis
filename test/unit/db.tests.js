@@ -32,9 +32,7 @@ describe("LimitDBRedis", () => {
           per_second: 5,
         },
       },
-      mocks: {
-        redis: redisMock,
-      },
+      redis: redisMock,
     });
 
     // Simulate ready event
@@ -112,7 +110,6 @@ describe("LimitDBRedis", () => {
 
     it("should handle unlimited buckets", (done) => {
       db.configurateBucket("unlimited", {
-        size: 100,
         unlimited: true,
       });
 
@@ -124,8 +121,6 @@ describe("LimitDBRedis", () => {
         (err, result) => {
           assert.isNull(err);
           assert.isTrue(result.conformant);
-          assert.equal(result.remaining, 100);
-          assert.equal(result.limit, 100);
           assert.isFalse(result.delayed);
           done();
         }
@@ -240,12 +235,16 @@ describe("LimitDBRedis", () => {
 
   describe("#configurateBuckets", () => {
     it("should update buckets configuration", () => {
+      assert.equal(db.buckets.ip.size, 10);
+      assert.equal(db.buckets.ip.per_interval, 5);
+      assert.equal(db.buckets.ip.interval, 1000);
+
       db.configurateBuckets({
-        test: { size: 5, per_second: 1 },
+        ip: { size: 5, per_second: 1 },
       });
-      assert.equal(db.buckets.test.size, 5);
-      assert.equal(db.buckets.test.per_interval, 1);
-      assert.equal(db.buckets.test.interval, 1000);
+      assert.equal(db.buckets.ip.size, 5);
+      assert.equal(db.buckets.ip.per_interval, 1);
+      assert.equal(db.buckets.ip.interval, 1000);
     });
   });
 

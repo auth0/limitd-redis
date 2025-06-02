@@ -31,13 +31,13 @@ jobs:
         run: npm install
 
       - name: Setup Standalone Tests
-        run: make test-standalone-valkey-setup
+        run: make integration-standalone-valkey-setup
 
       - name: Run Standalone tests
-        run: make test-standalone-run
+        run: make integration-standalone-run
 
       - name: Teardown Standalone Tests
-        run: make test-standalone-valkey-teardown
+        run: make integration-standalone-valkey-teardown
 
   valkey-cluster:
     env:
@@ -64,13 +64,13 @@ jobs:
         run: npm install
 
       - name: Setup Clustered Tests
-        run: make test-cluster-valkey-setup
+        run: make integration-cluster-valkey-setup
 
       - name: Check valkey Cluster
         run: timeout 60 bash <<< "until redis-cli -c -p 16371 cluster info | grep 'cluster_state:ok'; do sleep 1; done"
 
       - name: Run Clustered tests
-        run: make test-cluster-run
+        run: make integration-cluster-run
 
       - name: Teardown Clustered Tests
-        run: make test-cluster-valkey-teardown
+        run: make integration-cluster-valkey-teardown

@@ -8,7 +8,7 @@ const assert = chai.assert;
 
 const { getERLParams, calculateQuotaExpiration, normalizeType, resolveElevatedParams, replicateHashtag, isFixedWindowEnabled,
   removeHashtag
-} = require('../lib/utils');
+} = require('../../lib/utils');
 const { set, reset } = require('mockdate');
 const { expect } = require('chai');
 

@@ -3,49 +3,50 @@ export CLUSTER_NO_TLS_VALIDATION=true
 
 VALKEY_DOCKER_IMAGE=bitnami/valkey:8.0.2-debian-12-r5
 REDIS_DOCKER_IMAGE=redis:6
+.PHONY: test integration integration-% integration-setup-% integration-teardown-% integration-standalone-redis-setup integration-standalone-valkey-setup integration-standalone-redis-teardown integration-standalone-valkey-teardown integration-cluster-redis-setup integration-cluster-valkey-setup integration-cluster-redis-teardown integration-cluster-valkey-teardown integration-cluster-run integration-standalone-run integration-teardown-all
 
-test: test-redis test-valkey
+test:
+	npm run test
+integration: integration-redis integration-valkey
 	@echo "All tests executed"
 
-test-%: test-setup-% test-standalone-run test-cluster-run test-teardown-%
+integration-%: integration-setup-% integration-standalone-run integration-cluster-run integration-teardown-%
 	@echo "Test executed"
 
-test-setup-%: test-standalone-%-setup test-cluster-%-setup
+integration-setup-%: integration-standalone-%-setup integration-cluster-%-setup
 	@echo "Test setup executed"
 
-test-teardown-%: test-standalone-%-teardown test-cluster-%-teardown
+integration-teardown-%: integration-standalone-%-teardown integration-cluster-%-teardown
 	@echo "Test teardown executed"
 
-test-standalone-redis-setup:
+integration-standalone-redis-setup:
 	REDIS_IMAGE=${REDIS_DOCKER_IMAGE} docker compose up -d
 
-test-standalone-valkey-setup:
+integration-standalone-valkey-setup:
 	REDIS_IMAGE=${VALKEY_DOCKER_IMAGE} docker compose up -d
 
-test-standalone-redis-teardown:
+integration-standalone-redis-teardown:
 	REDIS_IMAGE=${REDIS_DOCKER_IMAGE} docker compose down
 
-test-standalone-valkey-teardown:
+integration-standalone-valkey-teardown:
 	REDIS_IMAGE=${VALKEY_DOCKER_IMAGE} docker compose down
 
-test-cluster-redis-setup:
+integration-cluster-redis-setup:
 	REDIS_IMAGE=${REDIS_DOCKER_IMAGE} docker compose -f docker-compose-cluster.yml up -d
 
-test-cluster-valkey-setup:
+integration-cluster-valkey-setup:
 	REDIS_IMAGE=${VALKEY_DOCKER_IMAGE} docker compose -f docker-compose-cluster.yml up -d
 
-test-cluster-redis-teardown:
+integration-cluster-redis-teardown:
 	REDIS_IMAGE=${REDIS_DOCKER_IMAGE} docker compose -f docker-compose-cluster.yml down
 
-test-cluster-valkey-teardown:
+integration-cluster-valkey-teardown:
 	REDIS_IMAGE=${VALKEY_DOCKER_IMAGE} docker compose -f docker-compose-cluster.yml down
 
-test-cluster-run:
-	npm run test-cluster
+integration-cluster-run:
+	npm run test-integration-cluster
 
-test-standalone-run:
-	npm run test-standalone
+integration-standalone-run:
+	npm run test-integration-standalone
 
-test-teardown-all: test-standalone-redis-teardown test-cluster-redis-teardown test-standalone-valkey-teardown test-cluster-valkey-teardown
-
-
+integration-teardown-all: integration-standalone-redis-teardown integration-cluster-redis-teardown integration-standalone-valkey-teardown integration-cluster-valkey-teardown

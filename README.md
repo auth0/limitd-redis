@@ -1,3 +1,17 @@
+# End of Life Notice
+
+This repository is not maintained anymore.
+
+If you use `express`, the following library is well maintained, we recommend
+that you replace your usage of `limitd-redis` with it.
+
+* [express-rate-limit](https://www.npmjs.com/package/express-rate-limit)
+
+## Legacy content retained for reference below:
+
+---
+
+
 [![Build Status](https://travis-ci.org/auth0/limitd-redis.svg?branch=master)](https://travis-ci.org/auth0/limitd-redis)
 
 `limitd-redis` is client for limits on top of `redis` using [Token Buckets](https://en.wikipedia.org/wiki/Token_bucket).
